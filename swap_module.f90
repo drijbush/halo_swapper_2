@@ -411,10 +411,7 @@ Contains
        Call mpi_waitall( Size( requests ), requests, mpi_statuses_ignore, error )
        ! Put new data in resized old array
        If( n_want > 0 ) Then
-          Deallocate( data )
-          Allocate( data, Mold = data_with_halo )
-          data = data_with_halo
-          Deallocate( data_with_halo )
+          Call move_alloc( data_with_halo, data )
        End If
 
        ! Report current status of data
