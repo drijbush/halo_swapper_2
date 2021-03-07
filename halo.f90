@@ -83,6 +83,7 @@ Program halo3
   If( rank == 0 ) Write( *, * ) '!!!!!!!!!!!!!!!!!'
   Call mpi_barrier( mpi_comm_world, error )
   Call dim_plan%init( n_data, n_halo, mpi_comm_world, error )
+  Call dim_plan%report( out )
   Allocate( data( i_start( rank ):i_end( rank ) ) )
   Do i = Lbound( data, Dim = 1 ), Ubound( data, Dim = 1 )
      data( i ) = i

@@ -35,8 +35,9 @@ Module swap_module
      Type( halo_plan_type ) :: left
      Type( halo_plan_type ) :: right
    Contains
-     Procedure, Public :: init => halo_dim_plan_init
-     Procedure, Public :: fill => halo_dim_plan_fill
+     Procedure, Public :: init   => halo_dim_plan_init
+     Procedure, Public :: fill   => halo_dim_plan_fill
+     Procedure, Public :: report => halo_dim_plan_report
   End Type halo_dim_plan_type
 
   Private
@@ -84,6 +85,16 @@ Contains
     Call plan%right%swap( data, report )
 
   End Subroutine halo_dim_plan_fill
+
+  Subroutine halo_dim_plan_report( plan, unit )
+
+    Class( halo_dim_plan_type ), Intent( In )              :: plan
+    Integer                    , Intent( In ) :: unit
+    
+    Call plan%left%report ( unit )
+    Call plan%right%report( unit )
+
+  End Subroutine halo_dim_plan_report
 
   Subroutine plan_halo_swap_left( halo_plan, comm, n_tot, i_start, i_end, n_halo )
 
@@ -617,25 +628,24 @@ Contains
 
   End Subroutine swap_int_1d_right
 
-  Subroutine report_plan( plan )
+  Subroutine report_plan( plan, unit )
 
     ! Report a halo plan
 
     Class( halo_plan_type ), Intent( In ) :: plan
+    Integer                , Intent( In ) :: unit
 
-    Integer :: out
     Integer :: i
 
-    out = 10 + plan%rank
-
-    Write( out, * )
-    Write( out, * ) 'Steps in plan for rank ', plan%rank, ' neighbours ', plan%prev, plan%next
-    Write( out, * ) 'Plan is for a ', Merge( 'Left ', 'Right', plan%direction == LEFT ), ' swap'
-    Write( out, '( 3( a7 ), 2( a14 ) )' ) 'Step   ', 'Want   ', 'Wanted ', '  Can give    ', '  Got         ' 
+    Write( unit, * )
+    Write( unit, * ) 'Steps in plan for rank ', plan%rank, ' neighbours ', plan%prev, plan%next
+    Write( unit, * ) 'Plan is for a ', Merge( 'Left ', 'Right', plan%direction == LEFT ), ' swap'
+    Write( unit, '( 3( a7 ), 2( a14 ) )' ) 'Step   ', 'Want   ', 'Wanted ', '  Can give    ', '  Got         ' 
     Do i = 1, Size( plan%steps )
-       Write( out, '( 7( i4, 3x ) )' ) &
+       Write( unit, '( 7( i4, 3x ) )' ) &
             i, plan%steps( i )%n_want, plan%steps( i )%n_wanted, plan%steps( i )%can_give, plan%steps( i )%got
     End Do
+    Write( unit, * )
 
   End Subroutine report_plan
   
