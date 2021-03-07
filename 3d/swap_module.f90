@@ -35,9 +35,10 @@ Module swap_module
      Type( halo_plan_type ) :: left
      Type( halo_plan_type ) :: right
    Contains
-     Procedure, Public :: init   => halo_dim_plan_init
-     Procedure, Public :: fill   => halo_dim_plan_fill
-     Procedure, Public :: report => halo_dim_plan_report
+     Procedure, Public :: init    => halo_dim_plan_init
+     Procedure, Public :: inquire => halo_dim_plan_inquire
+     Procedure, Public :: fill    => halo_dim_plan_fill
+     Procedure, Public :: report  => halo_dim_plan_report
   End Type halo_dim_plan_type
 
   Private
@@ -46,6 +47,30 @@ Module swap_module
   Integer, Parameter :: RIGHT = +1
 
 Contains
+
+  Subroutine halo_dim_plan_inquire( plan, i_start, i_end, n_tot )
+    ! Inquire porperties of a plan - NEEDS COMPLETING
+
+    Implicit None
+
+    Class( halo_dim_plan_type ), Intent( InOut )         :: plan
+    Integer                    , Intent( Out ), Optional :: i_start
+    Integer                    , Intent( Out ), Optional :: i_end
+    Integer                    , Intent( Out ), Optional :: n_tot
+
+    If( Present( i_start ) ) Then
+       i_start = plan%left%i_start
+    End If
+    
+    If( Present( i_end ) ) Then
+       i_end = plan%left%i_end
+    End If
+    
+    If( Present( n_tot ) ) Then
+       n_tot = plan%left%n_tot
+    End If
+    
+  End Subroutine halo_dim_plan_inquire
 
   Subroutine halo_dim_plan_init( plan, local_size, halo_width, comm, error )
 
@@ -448,6 +473,7 @@ Contains
   
     Integer :: prev, next
     Integer :: n_want, n_wanted
+    Integer :: n_halo
     Integer :: out
     Integer :: error
     Integer :: i, j
@@ -462,9 +488,13 @@ Contains
 
     out = 10 + plan%rank
 
-    comm = plan%comm
-    prev = plan%prev
-    next = plan%next
+    comm   = plan%comm
+    prev   = plan%prev
+    next   = plan%next
+    n_halo = plan%n_halo
+
+    Allocate( data_with_halo( Lbound( data, Dim = 1 ) - n_halo: Ubound( data, Dim = 1 ) ) )
+    data_with_halo( Lbound( data, Dim = 1 ):Ubound( data, Dim = 1 ) ) = data
 
     If( do_report ) Then
        Write( out, * )
@@ -484,38 +514,24 @@ Contains
 
        ! Send out data and Recieve new data
        If( n_wanted > 0 ) Then
-          Call mpi_isend( data( can_give( 1 ) ), can_give( 2 ) - can_give( 1 ) + 1, mpi_integer, next, 30, comm, &
+          Call mpi_isend( data_with_halo( can_give( 1 ) ), can_give( 2 ) - can_give( 1 ) + 1, mpi_integer, next, 30, comm, &
                requests( 1 ), error )
        Else
           requests( 1 ) = mpi_request_null
        End If
        If( n_want > 0 ) Then
-          Allocate( data_with_halo( got( 1 ):Ubound( data, Dim = 1 ) ) )
-          data_with_halo = -100
-          data_with_halo( Lbound( data, Dim = 1 ): ) = data
           Call mpi_irecv( data_with_halo( got( 1 ) ), got( 2 ) - got( 1 ) + 1, mpi_integer, prev, 30, comm, &
                requests( 2 ), error )
        Else
           requests( 2 ) = mpi_request_null
        End If
        Call mpi_waitall( Size( requests ), requests, mpi_statuses_ignore, error )
-       ! Put new data in resized old array
-       If( n_want > 0 ) Then
-          Call move_alloc( data_with_halo, data )
-       End If
-
-       ! Report current status of data
-       If( do_report ) Then
-          Write( out, '( "Indices: ", 3x, 200( i3, 1x ) )' ) ( j, j = Lbound( data, 1 ), Ubound( data, 1 ) )
-          Write( out, '( "Current: ", i3, 200( i3, 1x ) )' ) Size( data ), data
-          Write( out, * )
-          Flush( out )
-       End If
 
     End Do
 
+    Call move_alloc( data_with_halo, data )
+
     If( do_report ) Then
-       Write( out, * )
        Write( out, * )
        Write( out, * ) "Final"
        Write( out, '( "Indices: ", 3x, 200( i3, 1x ) )' ) ( j, j = Lbound( data, 1 ), Ubound( data, 1 ) )
@@ -547,6 +563,7 @@ Contains
   
     Integer :: prev, next
     Integer :: n_want, n_wanted
+    Integer :: n_halo
     Integer :: out
     Integer :: error
     Integer :: i, j
@@ -561,9 +578,13 @@ Contains
 
     out = 10 + plan%rank
 
-    comm = plan%comm
-    prev = plan%prev
-    next = plan%next
+    comm   = plan%comm
+    prev   = plan%prev
+    next   = plan%next
+    n_halo = plan%n_halo
+
+    Allocate( data_with_halo( Lbound( data, Dim = 1 ): Ubound( data, Dim = 1 ) + n_halo ) )
+    data_with_halo( Lbound( data, Dim = 1 ):Ubound( data, Dim = 1 ) ) = data
 
     If( do_report ) Then
        Write( out, * )
@@ -583,42 +604,24 @@ Contains
 
        ! Send out data and Recieve new data
        If( n_wanted > 0 ) Then
-          Call mpi_isend( data( can_give( 1 ) ), can_give( 2 ) - can_give( 1 ) + 1, mpi_integer, prev, 30, comm, &
+          Call mpi_isend( data_with_halo( can_give( 1 ) ), can_give( 2 ) - can_give( 1 ) + 1, mpi_integer, prev, 30, comm, &
                requests( 1 ), error )
        Else
           requests( 1 ) = mpi_request_null
        End If
        If( n_want > 0 ) Then
-!!$          Allocate( data_with_halo( got( 1 ):Ubound( data, Dim = 1 ) ) )
-          Allocate( data_with_halo( Lbound( data, Dim = 1 ):got( 2 ) ) )
-          data_with_halo = -100
-          data_with_halo( Lbound( data, Dim = 1 ):got( 1 ) - 1 ) = data
           Call mpi_irecv( data_with_halo( got( 1 ) ), got( 2 ) - got( 1 ) + 1, mpi_integer, next, 30, comm, &
                requests( 2 ), error )
        Else
           requests( 2 ) = mpi_request_null
        End If
        Call mpi_waitall( Size( requests ), requests, mpi_statuses_ignore, error )
-       ! Put new data in resized old array
-       If( n_want > 0 ) Then
-          Deallocate( data )
-          Allocate( data, Mold = data_with_halo )
-          data = data_with_halo
-          Deallocate( data_with_halo )
-       End If
-
-       ! Report current status of data
-       If( do_report ) Then
-          Write( out, '( "Indices: ", 3x, 200( i3, 1x ) )' ) ( j, j = Lbound( data, 1 ), Ubound( data, 1 ) )
-          Write( out, '( "Current: ", i3, 200( i3, 1x ) )' ) Size( data ), data
-          Write( out, * )
-          Flush( out )
-       End If
 
     End Do
 
+    Call Move_alloc( data_with_halo, data )
+
     If( do_report ) Then
-       Write( out, * )
        Write( out, * )
        Write( out, * ) "Final"
        Write( out, '( "Indices: ", 3x, 200( i3, 1x ) )' ) ( j, j = Lbound( data, 1 ), Ubound( data, 1 ) )

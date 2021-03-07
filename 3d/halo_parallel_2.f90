@@ -25,14 +25,16 @@ Module halo_parallel_module
 
   Type, Public, Extends( halo_setter_base_class ) :: halo_parallel_setter_2
      Private
-     Type( mpi_comm ),                                   Private :: comm
-     Integer,                                            Private :: halo_width
-     Integer,             Dimension( 1:3 ),              Private :: local_size
-     Integer,             Dimension( 1:3 ),              Private :: total_size
-     Integer,             Dimension( 1:3 ),              Private :: first_point
-     Integer,             Dimension( 1:3 ),              Private :: n_procs
-     Integer,             Dimension( 1:3 ),              Private :: my_coords
-     Logical,             Dimension( 1:3 ),              Private :: is_periodic
+     Type( mpi_comm ),                             Private :: comm
+     Integer,                                      Private :: halo_width
+     Integer,                    Dimension( 1:3 ), Private :: local_size
+     Integer,                    Dimension( 1:3 ), Private :: total_size
+     Integer,                    Dimension( 1:3 ), Private :: first_point
+     Integer,                    Dimension( 1:3 ), Private :: last_point
+     Integer,                    Dimension( 1:3 ), Private :: n_procs
+     Integer,                    Dimension( 1:3 ), Private :: my_coords
+     Logical,                    Dimension( 1:3 ), Private :: is_periodic
+     Type( halo_dim_plan_type ), Dimension( 1:3 ), Private :: dim_plans
    Contains
      Generic,   Public  :: init => halo_parallel_init_old
      Generic,   Public  :: init => halo_parallel_init_f08
@@ -89,7 +91,8 @@ Contains
        Return
     End If
 
-    ! Check it is periodic all in directions
+    ! Check it is periodic all in directions, and get other useful data,
+    ! size of proc grid and where I am in the proc grid
     Call mpi_cart_get( comm, ndims, H%n_procs, H%is_periodic, H%my_coords )
     If( .Not. All ( H%is_periodic ) ) Then
        error = 3
@@ -125,13 +128,16 @@ Contains
     H%local_size = local_size
     H%halo_width = halo_width
 
-    ! In x, y, z directions work out the "factored" communications patters
+    ! In x, y, z directions work out the communication plans
     Do i = 1, 3
        ! Create a comunicator for the direction in question
        is_this_axis = .False.
        is_this_axis( i ) = .True.
        Call mpi_cart_sub( comm, is_this_axis, axis_comm )
-       Call mpi_comm_free( axis_comm, error )
+       ! Now get the plans
+       Call H%dim_plans( i )%init( local_size( i ), halo_width, axis_comm, error )
+       ! And inquire of the plans some useful data
+       Call H%dim_plans( i )%inquire( i_start = H%first_point( i ), i_end = H%last_point( i ), n_tot = H%total_size( i ) )
     End Do
 
   Contains
