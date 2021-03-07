@@ -159,9 +159,6 @@ Contains
 
   Subroutine halo_fill( H, halo_width, hdlb, gin, hout, error )
 
-    Use mpi_f08, Only : mpi_waitall, mpi_statuses_ignore, mpi_isend, mpi_irecv, &
-         mpi_double_precision, mpi_request_null
-
     Use, Intrinsic :: iso_fortran_env, Only :  wp => real64
 
     Class( halo_parallel_setter_2 ),                             Intent( InOut ) :: H
@@ -171,6 +168,11 @@ Contains
     Real( wp ), Dimension( - halo_width:, - halo_width:, - halo_width: ), Intent(   Out ) :: hout
     Integer,                                                     Intent(   Out ) :: error
 
+    ! Dummy code to kill warnings while developing elsewhere
+    error = 0
+    hout = gin
+    Write( *, * ) H%halo_width, halo_width, hdlb
+    
 !!$    Integer, Dimension( 1:3 ) :: s, e, ss, es
 !!$
 !!$    Integer :: i_comms
