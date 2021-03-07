@@ -5,7 +5,7 @@ Program halo3
   Use mpi_f08, Only : mpi_comm_world, mpi_init, mpi_comm_size, mpi_comm_rank, mpi_finalize, &
        mpi_allreduce, mpi_in_place, mpi_integer, mpi_sum, mpi_bcast, mpi_barrier
 
-  Use swap_module, Only : halo_plan_type, halo_dim_plan_type
+  Use swap_module, Only : halo_dim_plan_type
   
   Implicit None
 
@@ -27,7 +27,6 @@ Program halo3
 
   Logical :: worked_size, worked_data
 
-  Type( halo_plan_type ) :: halo_plan
   Type( halo_dim_plan_type ) :: dim_plan
   
   Call mpi_init( error )
@@ -79,51 +78,11 @@ Program halo3
   Write( out, * ) 'n, n_halo ', n, n_halo
   Write( out, * ) 'n proc ', n_data_all
 
-  Call halo_plan%plan_left( mpi_comm_world, n, i_start( rank ), i_end( rank ), n_halo )
-
-  Write( *, * ) rank, ' planned'
-
-  Allocate( data( i_start( rank ):i_end( rank ) ) )
-  Do i = Lbound( data, Dim = 1 ), Ubound( data, Dim = 1 )
-     data( i ) = i
-  End Do
-
-  Call halo_plan%swap_left( data, .True. )
-
-  ! Finally check everything has worked
-  ! First check bounds
-  worked_size = Lbound( data, Dim = 1 ) == i_start( rank ) - n_halo
-  ! Now the data
-  worked_data = .True.
-  Do i = Ubound( data, Dim = 1 ), Lbound( data, Dim = 1 ), -1
-     worked_data = worked_data .And. Modulo( i, n ) == data( i )
-  End Do
-  Write( output_unit, * ) 'Checking rank ', rank, worked_size, worked_data
-  If( ( .Not. worked_size ) .Or. ( .Not. worked_data ) ) Write( *, * ) rank, ' BUSTED', n_halo, n_data_all
-
-  Call halo_plan%report
-  
-  Call halo_plan%plan_right( mpi_comm_world, n, i_start( rank ), i_end( rank ), n_halo )
-  Call halo_plan%report
-  Call halo_plan%swap_right( data, .True. )
-
-  ! Finally check everything has worked
-  ! First check bounds
-  worked_size = Ubound( data, Dim = 1 ) == i_end( rank ) + n_halo
-  ! Now the data
-  worked_data = .True.
-  Do i = Ubound( data, Dim = 1 ), Lbound( data, Dim = 1 ), -1
-     worked_data = worked_data .And. Modulo( i, n ) == data( i )
-  End Do
-  Write( output_unit, * ) 'Checking rank ', rank, worked_size, worked_data
-  If( ( .Not. worked_size ) .Or. ( .Not. worked_data ) ) Write( *, * ) rank, ' BUSTED', n_halo, n_data_all
-
   Call mpi_barrier( mpi_comm_world, error )
   Write( out, * ) '!!!!!!!!!!!!!!!!!'
   If( rank == 0 ) Write( *, * ) '!!!!!!!!!!!!!!!!!'
   Call mpi_barrier( mpi_comm_world, error )
   Call dim_plan%init( n_data, n_halo, mpi_comm_world, error )
-  Deallocate( data )
   Allocate( data( i_start( rank ):i_end( rank ) ) )
   Do i = Lbound( data, Dim = 1 ), Ubound( data, Dim = 1 )
      data( i ) = i

@@ -11,7 +11,7 @@ Module swap_module
      Integer, Dimension( 1:2 ) :: got
   End Type halo_step_type
 
-  Type, Public :: halo_plan_type
+  Type, Private :: halo_plan_type
      Private
      Type( mpi_comm )                                    :: comm
      Integer                                             :: rank
@@ -22,12 +22,12 @@ Module swap_module
      Integer                                             :: n_halo
      Type( halo_step_type ), Dimension( : ), Allocatable :: steps
    Contains
-     Procedure, Public :: plan_left  => plan_halo_swap_left
-     Procedure, Public :: plan_right => plan_halo_swap_right
-     Procedure, Public :: report     => report_plan
-     Procedure, Public :: swap_left  => swap_int_1d_left
-     Procedure, Public :: swap_right => swap_int_1d_right
-     Procedure, Public :: swap       => swap_int_1d
+     Procedure :: plan_left  => plan_halo_swap_left
+     Procedure :: plan_right => plan_halo_swap_right
+     Procedure :: report     => report_plan
+     Procedure :: swap_left  => swap_int_1d_left
+     Procedure :: swap_right => swap_int_1d_right
+     Procedure :: swap       => swap_int_1d
   End Type halo_plan_type
 
   Type, Public :: halo_dim_plan_type
