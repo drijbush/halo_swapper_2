@@ -9,7 +9,7 @@ Module swap_module
      Integer                   :: n_want, n_wanted
      Integer, Dimension( 1:2 ) :: can_give
      Integer, Dimension( 1:2 ) :: got
-  End type halo_step_type
+  End Type halo_step_type
 
   Type, Public :: halo_plan_type
      Private
@@ -17,6 +17,9 @@ Module swap_module
      Integer                                             :: rank
      Integer                                             :: prev, next
      Integer                                             :: direction
+     Integer                                             :: i_start, i_end
+     Integer                                             :: n_tot
+     Integer                                             :: n_halo
      Type( halo_step_type ), Dimension( : ), Allocatable :: steps
    Contains
      Procedure, Public :: plan_left  => plan_halo_swap_left
@@ -24,7 +27,17 @@ Module swap_module
      Procedure, Public :: report     => report_plan
      Procedure, Public :: swap_left  => swap_int_1d_left
      Procedure, Public :: swap_right => swap_int_1d_right
+     Procedure, Public :: swap       => swap_int_1d
   End Type halo_plan_type
+
+  Type, Public :: halo_dim_plan_type
+     Private
+     Type( halo_plan_type ) :: left
+     Type( halo_plan_type ) :: right
+   Contains
+     Procedure, Public :: init => halo_dim_plan_init
+     Procedure, Public :: fill => halo_dim_plan_fill
+  End Type halo_dim_plan_type
 
   Private
 
@@ -32,6 +45,45 @@ Module swap_module
   Integer, Parameter :: RIGHT = +1
 
 Contains
+
+  Subroutine halo_dim_plan_init( plan, local_size, halo_width, comm, error )
+
+    Use mpi_f08, Only : mpi_comm, mpi_allreduce, mpi_scan, mpi_integer, mpi_sum
+    
+    Implicit None
+
+    Class( halo_dim_plan_type ), Intent( InOut ) :: plan
+    Integer,                     Intent( In    ) :: local_size
+    Integer,                     Intent( In    ) :: halo_width
+    Type( mpi_comm ),            Intent( In    ) :: comm
+    Integer,                     Intent(   Out ) :: error
+
+    Integer :: i_start, i_end
+    Integer :: n_tot
+
+    error = 0
+
+    ! Generate the global size and local start and end points
+    Call mpi_allreduce( local_size, n_tot, 1, mpi_integer, mpi_sum, comm, error )
+    Call mpi_scan( local_size, i_end, 1, mpi_integer, mpi_sum, comm, error )
+    i_end = i_end - 1
+    i_start = i_end - local_size + 1
+
+    Call plan%left%plan_left  ( comm, n_tot, i_start, i_end, halo_width )
+    Call plan%right%plan_right( comm, n_tot, i_start, i_end, halo_width )
+    
+  End Subroutine halo_dim_plan_init
+
+  Subroutine halo_dim_plan_fill( plan, data, report )
+
+    Class( halo_dim_plan_type ),                 Intent( In    )              :: plan
+    Integer                    , Dimension( : ), Intent( InOut ), Allocatable :: data
+    Logical                    , Optional      , Intent( In    )              :: report
+
+    Call plan%left%swap ( data, report )
+    Call plan%right%swap( data, report )
+
+  End Subroutine halo_dim_plan_fill
 
   Subroutine plan_halo_swap_left( halo_plan, comm, n_tot, i_start, i_end, n_halo )
 
@@ -77,6 +129,11 @@ Contains
     halo_plan%rank = rank
     halo_plan%prev = prev
     halo_plan%next = next
+
+    halo_plan%i_start = i_start
+    halo_plan%i_end   = i_end
+    halo_plan%n_tot   = n_tot
+    halo_plan%n_halo  = n_halo
 
     ! List of what indices need communicating at each step
     If( Allocated( halo_plan%steps ) ) Deallocate( halo_plan%steps )
@@ -130,7 +187,7 @@ Contains
 
           ! Do it painfully obviously as I am finding this tricky
 
-          ! Find upper bound
+          ! Find upper bound - note as I am sending left this should be next to my domain and so definitely in range
           dom_wanted( 2 ) = wanted( 2 )
           If( wanted( 2 ) < i_hold_lo ) Then
              Do
@@ -229,6 +286,11 @@ Contains
     halo_plan%prev = prev
     halo_plan%next = next
 
+    halo_plan%i_start = i_start
+    halo_plan%i_end   = i_end
+    halo_plan%n_tot   = n_tot
+    halo_plan%n_halo  = n_halo
+
     ! List of what indices need communicating at each step
     If( Allocated( halo_plan%steps ) ) Deallocate( halo_plan%steps )
     Allocate( halo_plan%steps( 1:0 ) )
@@ -282,7 +344,7 @@ Contains
 
           ! Do it painfully obviously as I am finding this tricky
 
-          ! Find upper bound
+          ! Find lower bound - note as I am sending right this should be next to my domain and so definitely in range
           dom_wanted( 1 ) = wanted( 1 )
           If( wanted( 1 ) < i_hold_lo ) Then
              Do
@@ -308,7 +370,7 @@ Contains
 
        ! If I need some more data
        If( n_want > 0 ) Then
-          ! Recv what can be given from prev_proc
+          ! Recv what can be given from next proc
           Call mpi_irecv( got     , Size( got      ), mpi_integer, next, 20, comm, requests( 2 ), error )
        Else
           requests( 2 ) = mpi_request_null
@@ -335,6 +397,23 @@ Contains
     End Do
 
   End Subroutine plan_halo_swap_right
+
+  Subroutine swap_int_1d( plan, data, report )
+
+    ! Complete a left halo update with integer data. Mainly for debugging.
+
+    Class( halo_plan_type ),                 Intent( In    )              :: plan
+    Integer                , Dimension( : ), Intent( InOut ), Allocatable :: data
+    Logical                , Optional      , Intent( In    )              :: report
+
+    Select Case( plan%direction )
+    Case( LEFT )
+       Call plan%swap_left( data, report )
+    Case( RIGHT )
+       Call plan%swap_right( data, report )
+    End Select
+
+  End Subroutine swap_int_1d
 
   Subroutine swap_int_1d_left( plan, data, report )
 
