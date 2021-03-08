@@ -46,7 +46,7 @@ Contains
 
     Use mpi_f08, Only : mpi_comm, mpi_topo_test, mpi_cart, mpi_cartdim_get, mpi_cart_get, &
          mpi_cart_sub, mpi_comm_free, mpi_comm_rank, &
-         mpi_integer, mpi_allreduce, mpi_max, mpi_min, mpi_in_place
+         mpi_integer, mpi_allreduce, mpi_max, mpi_min, mpi_in_place, mpi_comm_free
 
     ! GRIDS START AT ZERO
 
@@ -106,6 +106,7 @@ Contains
        Call mpi_allreduce( local_size( i ), n_loc_min, 1, mpi_integer, mpi_min, plane_comm )
        ! If the max size is not the same as the min size that means not all procs
        ! in the plane have the same size
+       Call mpi_comm_free( plane_comm, error )
        If( n_loc_max /= n_loc_min ) Then
           error = 4
        End If
@@ -157,7 +158,7 @@ Contains
 
   Subroutine halo_fill( H, halo_width, hdlb, gin, hout, error )
 
-    Use, Intrinsic :: iso_fortran_env, Only :  wp => real64
+    Use constants, Only : wp
 
     Use swap_module, Only : halo_dim_plan_type
 
@@ -168,12 +169,13 @@ Contains
     Real( wp ), Dimension( - halo_width:, - halo_width:, - halo_width: ), Intent(   Out ) :: hout
     Integer,                                                     Intent(   Out ) :: error
 
-    ! Subsequent tree allocates to right size unlike earlier efforts
+    ! Subsequent calling tree allocates to right size unlike earlier efforts
     ! Need to rationalise this but let's get message passing right first
     Real( wp ), Dimension( :, :, : ), Allocatable :: temp
 
     error = 0
 
+    ! Just x sorted so far - let's get that going then look at subsequent
     Call H%dim_plans( 1 )%fill( H%corners, gin, temp )
     Hout = temp
     

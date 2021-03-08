@@ -731,6 +731,8 @@ Contains
     Allocate( data_with_halo( plan%i_start - n_halo:plan%i_end, 1:n_loc_y, n_loc_z ) )
     data_with_halo( plan%i_start:plan%i_end, :, : ) = data
 
+    Allocate( buffer( 1:n_halo * n_loc_y * n_loc_z ) )
+
     Do i = 1, Size( plan%steps )
 
        n_want = plan%steps( i )%n_want
@@ -740,7 +742,7 @@ Contains
        
        ! Send out data and Recieve new data
        If( n_wanted > 0 ) Then
-          Call copy_in( can_give, [ 1, n_loc_y ], [ 1, n_loc_z ], data_with_halo, buffer )
+          Call copy_in( can_give, [ 1, n_loc_y ], [ 1, n_loc_z ], Lbound( data_with_halo ), data_with_halo, buffer )
           nx = can_give( 2 ) - can_give( 1 ) + 1
           n_msg = nx * n_loc_y * n_loc_z
           Call mpi_isend( buffer, n_msg, plan%real_handle, next, SWAP_3D_LEFT, comm, requests( 1 ), error )
@@ -751,7 +753,7 @@ Contains
           nx = got( 2 ) - got( 1 ) + 1
           n_msg = nx * n_loc_y * n_loc_z
           Call mpi_irecv( buffer, n_msg, plan%real_handle, prev, SWAP_3D_LEFT, comm, requests( 2 ), error )
-          Call copy_out( got, [ 1, n_loc_y ], [ 1, n_loc_z ], buffer, data_with_halo )
+          Call copy_out( got, [ 1, n_loc_y ], [ 1, n_loc_z ], Lbound( data_with_halo ), buffer, data_with_halo )
        Else
           requests( 2 ) = mpi_request_null
        End If
@@ -801,8 +803,10 @@ Contains
        n_loc_z = Size( data, Dim = 3 )
     End If
     
-    Allocate( data_with_halo( plan%i_start - n_halo:plan%i_end, 1:n_loc_y, n_loc_z ) )
-    data_with_halo( plan%i_start:plan%i_end, :, : ) = data
+    Allocate( data_with_halo( plan%i_start - n_halo:plan%i_end + n_halo, 1:n_loc_y, n_loc_z ) )
+    data_with_halo( plan%i_start - n_halo:plan%i_end, :, : ) = data
+
+    Allocate( buffer( 1:n_halo * n_loc_y * n_loc_z ) )
 
     Do i = 1, Size( plan%steps )
 
@@ -813,7 +817,7 @@ Contains
        
        ! Send out data and Recieve new data
        If( n_wanted > 0 ) Then
-          Call copy_in( can_give, [ 1, n_loc_y ], [ 1, n_loc_z ], data_with_halo, buffer )
+          Call copy_in( can_give, [ 1, n_loc_y ], [ 1, n_loc_z ], Lbound( data_with_halo ), data_with_halo, buffer )
           nx = can_give( 2 ) - can_give( 1 ) + 1
           n_msg = nx * n_loc_y * n_loc_z
           Call mpi_isend( buffer, n_msg, plan%real_handle, prev, SWAP_3D_RIGHT, comm, requests( 1 ), error )
@@ -824,7 +828,7 @@ Contains
           nx = got( 2 ) - got( 1 ) + 1
           n_msg = nx * n_loc_y * n_loc_z
           Call mpi_irecv( buffer, n_msg, plan%real_handle, next, SWAP_3D_RIGHT, comm, requests( 2 ), error )
-          Call copy_out( got, [ 1, n_loc_y ], [ 1, n_loc_z ], buffer, data_with_halo )
+          Call copy_out( got, [ 1, n_loc_y ], [ 1, n_loc_z ], Lbound( data_with_halo ), buffer, data_with_halo )
        Else
           requests( 2 ) = mpi_request_null
        End If
@@ -878,14 +882,15 @@ Contains
 
   End Subroutine report_plan
 
-  Pure Subroutine copy_in( xb, yb, zb, in, buff )
+  Pure Subroutine copy_in( xb, yb, zb, lb, in, buff )
 
     Use constants, Only : wp
 
     Integer   , Dimension( 1:2     ), Intent( In    ) :: xb
     Integer   , Dimension( 1:2     ), Intent( In    ) :: yb
     Integer   , Dimension( 1:2     ), Intent( In    ) :: zb
-    Real( wp ), Dimension( :, :, : ), Intent( In    ) :: in
+    Integer   , Dimension( 1:3     ), Intent( In    ) :: lb
+    Real( wp ), Dimension( lb( 1 ):, lb( 2 ):, lb( 3 ): ), Intent( In    ) :: in
     Real( wp ), Dimension( :       ), Intent(   Out ) :: buff
 
     Integer :: ib
@@ -896,22 +901,23 @@ Contains
        Do iy = yb( 1 ), yb( 2 )
           Do ix = xb( 1 ), xb( 2 )
              ib = ib + 1
-             buff( ib ) = in( iz, iy, iz )
+             buff( ib ) = in( ix, iy, iz )
           End Do
        End Do
     End Do
        
   End Subroutine copy_in
     
-  Pure Subroutine copy_out( xb, yb, zb, buff, in )
+  Pure Subroutine copy_out( xb, yb, zb, lb, buff, in )
 
     Use constants, Only : wp
 
     Integer   , Dimension( 1:2     ), Intent( In    ) :: xb
     Integer   , Dimension( 1:2     ), Intent( In    ) :: yb
     Integer   , Dimension( 1:2     ), Intent( In    ) :: zb
+    Integer   , Dimension( 1:3     ), Intent( In    ) :: lb
     Real( wp ), Dimension( :       ), Intent( In    ) :: buff
-    Real( wp ), Dimension( :, :, : ), Intent(   Out ) :: in
+    Real( wp ), Dimension( lb( 1 ):, lb( 2 ):, lb( 3 ): ), Intent(   Out ) :: in
 
     Integer :: ib
     Integer :: ix, iy, iz
@@ -921,7 +927,7 @@ Contains
        Do iy = yb( 1 ), yb( 2 )
           Do ix = xb( 1 ), xb( 2 )
              ib = ib + 1
-             in( iz, iy, iz ) = buff( ib )
+             in( ix, iy, iz ) = buff( ib )
           End Do
        End Do
     End Do
