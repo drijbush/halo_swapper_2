@@ -1,6 +1,6 @@
 Module swap_module
 
-  Use mpi_f08, Only : mpi_comm
+  Use mpi_f08, Only : mpi_comm, mpi_datatype
   
   Implicit None
 
@@ -21,13 +21,17 @@ Module swap_module
      Integer                                             :: n_tot
      Integer                                             :: n_halo
      Type( halo_step_type ), Dimension( : ), Allocatable :: steps
+     Type( mpi_Datatype   )                              :: real_handle
    Contains
-     Procedure :: plan_left  => plan_halo_swap_left
-     Procedure :: plan_right => plan_halo_swap_right
-     Procedure :: report     => report_plan
-     Procedure :: swap_left  => swap_int_1d_left
-     Procedure :: swap_right => swap_int_1d_right
-     Procedure :: swap       => swap_int_1d
+     Procedure :: plan_left       => plan_halo_swap_left
+     Procedure :: plan_right      => plan_halo_swap_right
+     Procedure :: report          => report_plan
+     Procedure :: swap_left_1d    => swap_int_1d_left
+     Procedure :: swap_right_1d   => swap_int_1d_right
+     Procedure :: swap_left_3d_x  => swap_real_3d_left_x
+     Procedure :: swap_right_3d_x => swap_real_3d_right_x
+     Procedure :: swap_1d         => swap_int_1d
+     Procedure :: swap_3d_x       => swap_real_3d_x
   End Type halo_plan_type
 
   Type, Public :: halo_dim_plan_type
@@ -37,8 +41,13 @@ Module swap_module
    Contains
      Procedure, Public :: init    => halo_dim_plan_init
      Procedure, Public :: inquire => halo_dim_plan_inquire
-     Procedure, Public :: fill    => halo_dim_plan_fill
+     Procedure, Public :: fill_1d => halo_dim_plan_fill_1d
+     Procedure, Public :: fill_3d => halo_dim_plan_fill_3d
      Procedure, Public :: report  => halo_dim_plan_report
+     Procedure, Public :: free    => halo_dim_plan_free
+     Generic :: fill => fill_1d
+     Generic :: fill => fill_3d
+     Final :: halo_dim_plan_final
   End Type halo_dim_plan_type
 
   Private
@@ -46,10 +55,18 @@ Module swap_module
   Integer, Parameter :: LEFT  = -1
   Integer, Parameter :: RIGHT = +1
 
+  Integer, Parameter :: PLAN_WANT_TAG = 10
+  Integer, Parameter :: PLAN_GIVE_TAG = 20
+  Integer, Parameter :: SWAP_1D_LEFT  = 30
+  Integer, Parameter :: SWAP_1D_RIGHT = 40
+  Integer, Parameter :: SWAP_3D_LEFT  = 50
+  Integer, Parameter :: SWAP_3D_RIGHT = 60
+  
+  
 Contains
 
   Subroutine halo_dim_plan_inquire( plan, i_start, i_end, n_tot )
-    ! Inquire porperties of a plan - NEEDS COMPLETING
+    ! Inquire properties of a plan - NEEDS COMPLETING
 
     Implicit None
 
@@ -74,7 +91,9 @@ Contains
 
   Subroutine halo_dim_plan_init( plan, local_size, halo_width, comm, error )
 
-    Use mpi_f08, Only : mpi_comm, mpi_allreduce, mpi_scan, mpi_integer, mpi_sum
+    Use mpi_f08, Only : mpi_comm, mpi_allreduce, mpi_scan, mpi_integer, mpi_sum, mpi_type_create_f90_real
+
+    Use constants, Only : wp
     
     Implicit None
 
@@ -95,25 +114,46 @@ Contains
     i_end = i_end - 1
     i_start = i_end - local_size + 1
 
+    ! Plans for comms in each direction
     Call plan%left%plan_left  ( comm, n_tot, i_start, i_end, halo_width )
     Call plan%right%plan_right( comm, n_tot, i_start, i_end, halo_width )
+
+    ! And set up a handle for a real type to use in the communication
+    Call mpi_type_create_f90_real( Precision( 1.0_wp ), Range( 1.0_wp ), plan%left%real_handle, error )
+    plan%right%real_handle = plan%left%real_handle
     
   End Subroutine halo_dim_plan_init
 
-  Subroutine halo_dim_plan_fill( plan, data, report )
+  Subroutine halo_dim_plan_fill_1d( plan, data, report )
 
     Class( halo_dim_plan_type ),                 Intent( In    )              :: plan
     Integer                    , Dimension( : ), Intent( InOut ), Allocatable :: data
     Logical                    , Optional      , Intent( In    )              :: report
 
-    Call plan%left%swap ( data, report )
-    Call plan%right%swap( data, report )
+    Call plan%left%swap_left_1d ( data, report )
+    Call plan%right%swap_right_1d( data, report )
 
-  End Subroutine halo_dim_plan_fill
+  End Subroutine halo_dim_plan_fill_1d
+
+  Subroutine halo_dim_plan_fill_3d( plan, corners, data, data_with_halo )
+
+    Use constants, Only : wp
+    
+    Class( halo_dim_plan_type ),                       Intent( In    )              :: plan
+    Logical                                          , Intent( In    )              :: corners
+    Real( wp )                 , Dimension( :, :, : ), Intent( In    )              :: data
+    Real( wp )                 , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
+
+    Real( wp ), Dimension( :, :, : ), Allocatable :: temp
+
+    Call plan%left%swap_3d_x ( corners, data, temp           )
+    Call plan%right%swap_3d_x( corners, temp, data_with_halo )
+
+  End Subroutine halo_dim_plan_fill_3d
 
   Subroutine halo_dim_plan_report( plan, unit )
 
-    Class( halo_dim_plan_type ), Intent( In )              :: plan
+    Class( halo_dim_plan_type ), Intent( In ) :: plan
     Integer                    , Intent( In ) :: unit
     
     Call plan%left%report ( unit )
@@ -349,16 +389,15 @@ Contains
 
        ! Send to neighbouring proc the indices that I still need to fill in to complete the halo
        If( n_want > 0 ) Then
-!!$          want = [ i_start - n_halo, i_hold_lo - 1 ]
           want = [ i_hold_hi + 1, i_end + n_halo ]
           !Send what is wanted    to   next proc
-          Call mpi_isend( want  , Size( want   ), mpi_integer, next, 10, comm, requests( 1 ), error )
+          Call mpi_isend( want  , Size( want   ), mpi_integer, next, PLAN_WANT_TAG, comm, requests( 1 ), error )
        Else
           requests( 1 ) = mpi_request_null
        End If
        ! Recv what indices are wanted from prev proc
        If( n_wanted > 0 ) Then
-          Call mpi_irecv( wanted, Size( wanted ), mpi_integer, prev, 10, comm, requests( 2 ), error )
+          Call mpi_irecv( wanted, Size( wanted ), mpi_integer, prev, PLAN_WANT_TAG, comm, requests( 2 ), error )
        Else
           requests( 2 ) = mpi_request_null
        End If
@@ -399,7 +438,7 @@ Contains
           ! which is constrained by the current size of what we hold
           can_give = [ Max( dom_wanted( 1 ), i_start ), Min( i_hold_hi, dom_wanted( 2 ) ) ]
           !Send what can be given to prev proc
-          Call mpi_isend( can_give, Size( can_give ), mpi_integer, prev, 20, comm, requests( 1 ), error )
+          Call mpi_isend( can_give, Size( can_give ), mpi_integer, prev, PLAN_GIVE_TAG, comm, requests( 1 ), error )
        Else
           requests( 1 ) = mpi_request_null
        End If
@@ -407,7 +446,7 @@ Contains
        ! If I need some more data
        If( n_want > 0 ) Then
           ! Recv what can be given from next proc
-          Call mpi_irecv( got     , Size( got      ), mpi_integer, next, 20, comm, requests( 2 ), error )
+          Call mpi_irecv( got     , Size( got      ), mpi_integer, next, PLAN_GIVE_TAG, comm, requests( 2 ), error )
        Else
           requests( 2 ) = mpi_request_null
        End If
@@ -444,12 +483,30 @@ Contains
 
     Select Case( plan%direction )
     Case( LEFT )
-       Call plan%swap_left( data, report )
+       Call plan%swap_left_1d( data, report )
     Case( RIGHT )
-       Call plan%swap_right( data, report )
+       Call plan%swap_right_1d( data, report )
     End Select
 
   End Subroutine swap_int_1d
+
+  Subroutine swap_real_3d_x( plan, corners, data, data_with_halo )
+
+    Use constants, Only : wp
+    
+    Class( halo_plan_type ),                       Intent( In    )              :: plan
+    Logical                                      , Intent( In    )              :: corners
+    Real( wp )             , Dimension( :, :, : ), Intent( In    )              :: data
+    Real( wp )             , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
+
+    Select Case( plan%direction )
+    Case( LEFT )
+       Call plan%swap_left_3d_x( corners, data, data_with_halo )
+    Case( RIGHT )
+       Call plan%swap_right_3d_x( corners, data, data_with_halo )
+    End Select
+
+  End Subroutine swap_real_3d_x
 
   Subroutine swap_int_1d_left( plan, data, report )
 
@@ -504,7 +561,7 @@ Contains
        Write( out, * )
        Flush( out )
     End If
-
+ 
     Do i = 1, Size( plan%steps )
 
        n_want = plan%steps( i )%n_want
@@ -514,14 +571,14 @@ Contains
 
        ! Send out data and Recieve new data
        If( n_wanted > 0 ) Then
-          Call mpi_isend( data_with_halo( can_give( 1 ) ), can_give( 2 ) - can_give( 1 ) + 1, mpi_integer, next, 30, comm, &
-               requests( 1 ), error )
+          Call mpi_isend( data_with_halo( can_give( 1 ) ), can_give( 2 ) - can_give( 1 ) + 1, mpi_integer, next, &
+               SWAP_1D_LEFT, comm, requests( 1 ), error )
        Else
           requests( 1 ) = mpi_request_null
        End If
        If( n_want > 0 ) Then
-          Call mpi_irecv( data_with_halo( got( 1 ) ), got( 2 ) - got( 1 ) + 1, mpi_integer, prev, 30, comm, &
-               requests( 2 ), error )
+          Call mpi_irecv( data_with_halo( got( 1 ) ), got( 2 ) - got( 1 ) + 1, mpi_integer, prev, &
+               SWAP_1D_LEFT, comm, requests( 2 ), error )
        Else
           requests( 2 ) = mpi_request_null
        End If
@@ -604,14 +661,14 @@ Contains
 
        ! Send out data and Recieve new data
        If( n_wanted > 0 ) Then
-          Call mpi_isend( data_with_halo( can_give( 1 ) ), can_give( 2 ) - can_give( 1 ) + 1, mpi_integer, prev, 30, comm, &
-               requests( 1 ), error )
+          Call mpi_isend( data_with_halo( can_give( 1 ) ), can_give( 2 ) - can_give( 1 ) + 1, mpi_integer, prev, &
+               SWAP_1D_RIGHT, comm, requests( 1 ), error )
        Else
           requests( 1 ) = mpi_request_null
        End If
        If( n_want > 0 ) Then
-          Call mpi_irecv( data_with_halo( got( 1 ) ), got( 2 ) - got( 1 ) + 1, mpi_integer, next, 30, comm, &
-               requests( 2 ), error )
+          Call mpi_irecv( data_with_halo( got( 1 ) ), got( 2 ) - got( 1 ) + 1, mpi_integer, next, &
+               SWAP_1D_RIGHT, comm, requests( 2 ), error )
        Else
           requests( 2 ) = mpi_request_null
        End If
@@ -630,6 +687,175 @@ Contains
     End If
 
   End Subroutine swap_int_1d_right
+
+  Subroutine swap_real_3d_left_x( plan, corners, data, data_with_halo )
+
+    Use mpi_f08, Only : mpi_comm, mpi_request_null, mpi_request, mpi_statuses_ignore, &
+         mpi_comm_size, mpi_comm_rank, mpi_isend, mpi_irecv, mpi_waitall
+
+    Use constants, Only : wp
+
+    Class( halo_plan_type ),                       Intent( In    )              :: plan
+    Logical                ,                       Intent( In    )              :: corners          
+    Real( wp )             , Dimension( :, :, : ), Intent( In    )              :: data
+    Real( wp )             , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
+
+    Real( wp ), Dimension( : ), Allocatable :: buffer
+    
+    Type( mpi_request ), Dimension( 1:2 ) :: requests
+
+    Type( mpi_comm ) :: comm
+
+    Integer, Dimension( 1:2 ) :: got
+    Integer, Dimension( 1:2 ) :: can_give
+
+    Integer :: nx, n_loc_y, n_loc_z
+    Integer :: n_msg
+    Integer :: prev, next
+    Integer :: n_want, n_wanted
+    Integer :: n_halo
+    Integer :: error
+    Integer :: i
+
+    comm   = plan%comm
+    prev   = plan%prev
+    next   = plan%next
+    n_halo = plan%n_halo
+
+    ! Corners makes no difference in the x case
+    If( corners .Or. .Not. corners ) Then
+       n_loc_y = Size( data, Dim = 2 )
+       n_loc_z = Size( data, Dim = 3 )
+    End If
+    
+    Allocate( data_with_halo( plan%i_start - n_halo:plan%i_end, 1:n_loc_y, n_loc_z ) )
+    data_with_halo( plan%i_start:plan%i_end, :, : ) = data
+
+    Do i = 1, Size( plan%steps )
+
+       n_want = plan%steps( i )%n_want
+       n_wanted = plan%steps( i )%n_wanted
+       can_give = plan%steps( i )%can_give
+       got = plan%steps( i )%got
+       
+       ! Send out data and Recieve new data
+       If( n_wanted > 0 ) Then
+          Call copy_in( can_give, [ 1, n_loc_y ], [ 1, n_loc_z ], data_with_halo, buffer )
+          nx = can_give( 2 ) - can_give( 1 ) + 1
+          n_msg = nx * n_loc_y * n_loc_z
+          Call mpi_isend( buffer, n_msg, plan%real_handle, next, SWAP_3D_LEFT, comm, requests( 1 ), error )
+       Else
+          requests( 1 ) = mpi_request_null
+       End If
+       If( n_want > 0 ) Then
+          nx = got( 2 ) - got( 1 ) + 1
+          n_msg = nx * n_loc_y * n_loc_z
+          Call mpi_irecv( buffer, n_msg, plan%real_handle, prev, SWAP_3D_LEFT, comm, requests( 2 ), error )
+          Call copy_out( got, [ 1, n_loc_y ], [ 1, n_loc_z ], buffer, data_with_halo )
+       Else
+          requests( 2 ) = mpi_request_null
+       End If
+       Call mpi_waitall( Size( requests ), requests, mpi_statuses_ignore, error )
+
+    End Do
+    
+  End Subroutine swap_real_3d_left_x
+  
+  Subroutine swap_real_3d_right_x( plan, corners, data, data_with_halo )
+
+    Use mpi_f08, Only : mpi_comm, mpi_request_null, mpi_request, mpi_statuses_ignore, &
+         mpi_comm_size, mpi_comm_rank, mpi_isend, mpi_irecv, mpi_waitall
+
+    Use constants, Only : wp
+
+    Class( halo_plan_type ),                       Intent( In    )              :: plan
+    Logical                ,                       Intent( In    )              :: corners          
+    Real( wp )             , Dimension( :, :, : ), Intent( In    )              :: data
+    Real( wp )             , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
+
+    Real( wp ), Dimension( : ), Allocatable :: buffer
+    
+    Type( mpi_request ), Dimension( 1:2 ) :: requests
+
+    Type( mpi_comm ) :: comm
+
+    Integer, Dimension( 1:2 ) :: got
+    Integer, Dimension( 1:2 ) :: can_give
+
+    Integer :: nx, n_loc_y, n_loc_z
+    Integer :: n_msg
+    Integer :: prev, next
+    Integer :: n_want, n_wanted
+    Integer :: n_halo
+    Integer :: error
+    Integer :: i
+
+    comm   = plan%comm
+    prev   = plan%prev
+    next   = plan%next
+    n_halo = plan%n_halo
+
+    ! Corners makes no difference in the x case
+    If( corners .Or. .Not. corners ) Then
+       n_loc_y = Size( data, Dim = 2 )
+       n_loc_z = Size( data, Dim = 3 )
+    End If
+    
+    Allocate( data_with_halo( plan%i_start - n_halo:plan%i_end, 1:n_loc_y, n_loc_z ) )
+    data_with_halo( plan%i_start:plan%i_end, :, : ) = data
+
+    Do i = 1, Size( plan%steps )
+
+       n_want = plan%steps( i )%n_want
+       n_wanted = plan%steps( i )%n_wanted
+       can_give = plan%steps( i )%can_give
+       got = plan%steps( i )%got
+       
+       ! Send out data and Recieve new data
+       If( n_wanted > 0 ) Then
+          Call copy_in( can_give, [ 1, n_loc_y ], [ 1, n_loc_z ], data_with_halo, buffer )
+          nx = can_give( 2 ) - can_give( 1 ) + 1
+          n_msg = nx * n_loc_y * n_loc_z
+          Call mpi_isend( buffer, n_msg, plan%real_handle, prev, SWAP_3D_RIGHT, comm, requests( 1 ), error )
+       Else
+          requests( 1 ) = mpi_request_null
+       End If
+       If( n_want > 0 ) Then
+          nx = got( 2 ) - got( 1 ) + 1
+          n_msg = nx * n_loc_y * n_loc_z
+          Call mpi_irecv( buffer, n_msg, plan%real_handle, next, SWAP_3D_RIGHT, comm, requests( 2 ), error )
+          Call copy_out( got, [ 1, n_loc_y ], [ 1, n_loc_z ], buffer, data_with_halo )
+       Else
+          requests( 2 ) = mpi_request_null
+       End If
+       Call mpi_waitall( Size( requests ), requests, mpi_statuses_ignore, error )
+
+    End Do
+    
+  End Subroutine swap_real_3d_right_x
+  
+  Impure Elemental Subroutine halo_dim_plan_free( plan )
+
+    Use mpi_f08, Only : mpi_type_free
+
+    Class( halo_dim_plan_type ), Intent( InOut ) :: plan
+
+    Integer :: error
+
+    Call mpi_type_free( plan%left%real_handle, error )
+
+    Deallocate( plan%right%steps )
+    Deallocate( plan%left%steps )
+    
+  End Subroutine halo_dim_plan_free
+  
+  Impure Elemental Subroutine halo_dim_plan_final( plan )
+
+    Type( halo_dim_plan_type ), Intent( InOut ) :: plan
+
+    Call plan%free()
+
+  End Subroutine halo_dim_plan_final
 
   Subroutine report_plan( plan, unit )
 
@@ -651,5 +877,55 @@ Contains
     Write( unit, * )
 
   End Subroutine report_plan
+
+  Pure Subroutine copy_in( xb, yb, zb, in, buff )
+
+    Use constants, Only : wp
+
+    Integer   , Dimension( 1:2     ), Intent( In    ) :: xb
+    Integer   , Dimension( 1:2     ), Intent( In    ) :: yb
+    Integer   , Dimension( 1:2     ), Intent( In    ) :: zb
+    Real( wp ), Dimension( :, :, : ), Intent( In    ) :: in
+    Real( wp ), Dimension( :       ), Intent(   Out ) :: buff
+
+    Integer :: ib
+    Integer :: ix, iy, iz
+
+    ib = 0
+    Do iz = zb( 1 ), zb( 2 )
+       Do iy = yb( 1 ), yb( 2 )
+          Do ix = xb( 1 ), xb( 2 )
+             ib = ib + 1
+             buff( ib ) = in( iz, iy, iz )
+          End Do
+       End Do
+    End Do
+       
+  End Subroutine copy_in
+    
+  Pure Subroutine copy_out( xb, yb, zb, buff, in )
+
+    Use constants, Only : wp
+
+    Integer   , Dimension( 1:2     ), Intent( In    ) :: xb
+    Integer   , Dimension( 1:2     ), Intent( In    ) :: yb
+    Integer   , Dimension( 1:2     ), Intent( In    ) :: zb
+    Real( wp ), Dimension( :       ), Intent( In    ) :: buff
+    Real( wp ), Dimension( :, :, : ), Intent(   Out ) :: in
+
+    Integer :: ib
+    Integer :: ix, iy, iz
+
+    ib = 0
+    Do iz = zb( 1 ), zb( 2 )
+       Do iy = yb( 1 ), yb( 2 )
+          Do ix = xb( 1 ), xb( 2 )
+             ib = ib + 1
+             in( iz, iy, iz ) = buff( ib )
+          End Do
+       End Do
+    End Do
+       
+  End Subroutine copy_out
   
 End Module swap_module

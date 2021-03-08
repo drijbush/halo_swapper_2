@@ -36,4 +36,4 @@ clean:
 halo.o: swap_module.o halo_parallel_2.o
 halo_base_class.o: constants.o
 halo_parallel_2.o: constants.o halo_base_class.o swap_module.o
-swap_module.o: 
+swap_module.o: constants.o 

@@ -4,24 +4,15 @@ Module halo_parallel_module
   ! 1) Rationalise error codes
   ! 2) Add flags for orthogonal cells which avoid unneccesary comms
 
+  Use swap_module, Only : halo_dim_plan_type 
+
   Use mpi_f08, Only : mpi_comm, mpi_request
 
   Use constants  , Only : wp
-  Use swap_module, Only : halo_dim_plan_type
 
   Use halo_setter_base_module, Only : halo_setter_base_class
 
   Implicit None
-
-  Type, Private :: halo_comms
-     Integer,    Dimension( 1:3 )                  :: remote_coord
-     Integer                                       :: remote_rank
-     Integer,    Dimension( 1:3 )                  :: comm_size
-     Integer,    Dimension( 1:3 )                  :: comm_start
-     Integer                                       :: tag
-     Logical                                       :: is_local
-     Real( wp ), Dimension( :, :, : ), Allocatable :: buffer
-  End type halo_comms
 
   Type, Public, Extends( halo_setter_base_class ) :: halo_parallel_setter_2
      Private
@@ -34,6 +25,7 @@ Module halo_parallel_module
      Integer,                    Dimension( 1:3 ), Private :: n_procs
      Integer,                    Dimension( 1:3 ), Private :: my_coords
      Logical,                    Dimension( 1:3 ), Private :: is_periodic
+     Logical                                     , Private :: corners = .True.
      Type( halo_dim_plan_type ), Dimension( 1:3 ), Private :: dim_plans
    Contains
      Generic,   Public  :: init => halo_parallel_init_old
@@ -167,6 +159,8 @@ Contains
 
     Use, Intrinsic :: iso_fortran_env, Only :  wp => real64
 
+    Use swap_module, Only : halo_dim_plan_type
+
     Class( halo_parallel_setter_2 ),                             Intent( InOut ) :: H
     Integer,                                                     Intent( In    ) :: halo_width
     Integer,    Dimension( 1:3 ),                                Intent( In    ) :: hdlb
@@ -174,70 +168,15 @@ Contains
     Real( wp ), Dimension( - halo_width:, - halo_width:, - halo_width: ), Intent(   Out ) :: hout
     Integer,                                                     Intent(   Out ) :: error
 
-    ! Dummy code to kill warnings while developing elsewhere
-    error = 0
-    hout = gin
-    Write( *, * ) H%halo_width, halo_width, hdlb
-    
-!!$    Integer, Dimension( 1:3 ) :: s, e, ss, es
-!!$
-!!$    Integer :: i_comms
-!!$
-!!$    error = 0
-!!$
-!!$    If( halo_width /= H%halo_width ) Then
-!!$       error = 10
-!!$       Return
-!!$    End If
-!!$
-!!$    Call H%inc_n_calls()
-!!$
-!!$    ! Loops over the recvs
-!!$    Do i_comms = 1, Size( H%recv_comms )
-!!$       ! Post the recv
-!!$       ! FIX MPI_DOUBLE_PRECISON to make portable
-!!$       If( .Not. H%recv_comms( i_comms )%is_local ) Then
-!!$          Call mpi_irecv( H%recv_comms( i_comms )%buffer, Size( H%recv_comms( i_comms )%buffer ), mpi_double_precision, &
-!!$               H%recv_comms( i_comms )%remote_rank, H%recv_comms( i_comms )%tag, H%comm, &
-!!$               H%msg_requests( i_comms ) )
-!!$       Else
-!!$          H%msg_requests( i_comms ) = mpi_request_null
-!!$       End If
-!!$    End Do
-!!$
-!!$    ! Loops over the sends
-!!$    Do i_comms = 1, Size( H%recv_comms )
-!!$       ! Copy the relevant part into the buffer
-!!$       If( .Not. H%send_comms( i_comms )%is_local ) Then
-!!$          s = H%send_comms( i_comms )%comm_start
-!!$          e = H%send_comms( i_comms )%comm_start + H%send_comms( i_comms )%comm_size - 1
-!!$          H%send_comms( i_comms )%buffer = gin( s( 1 ):e( 1 ), s( 2 ):e( 2 ), s( 3 ):e( 3 ) )
-!!$          ! Post the send
-!!$          Call mpi_isend( H%send_comms( i_comms )%buffer, Size( H%send_comms( i_comms )%buffer ), mpi_double_precision, &
-!!$               H%send_comms( i_comms )%remote_rank, H%send_comms( i_comms )%tag, H%comm, &
-!!$               H%msg_requests( i_comms + Size( H%recv_comms ) ) )
-!!$       Else
-!!$          H%msg_requests( i_comms + Size( H%recv_comms )  ) = mpi_request_null
-!!$       End If
-!!$    End Do
-!!$
-!!$    ! Wait on the async comms
-!!$    Call mpi_waitall( Size( H%msg_requests ), H%msg_requests, mpi_statuses_ignore )
-!!$
-!!$    Do i_comms = 1, Size( H%recv_comms )
-!!$       ! Copy the buffer into the relevant parts
-!!$       s = H%recv_comms( i_comms )%comm_start
-!!$       e = H%recv_comms( i_comms )%comm_start + H%recv_comms( i_comms )%comm_size - 1
-!!$       If( .Not. H%recv_comms( i_comms )%is_local ) Then
-!!$          hout( s( 1 ):e( 1 ), s( 2 ):e( 2 ), s( 3 ):e( 3 ) ) = H%recv_comms( i_comms )%buffer
-!!$       Else
-!!$          ss = H%send_comms( i_comms )%comm_start
-!!$          es = H%send_comms( i_comms )%comm_start + H%send_comms( i_comms )%comm_size - 1
-!!$          hout( s( 1 ):e( 1 ), s( 2 ):e( 2 ), s( 3 ):e( 3 ) ) = &
-!!$               gin( ss( 1 ):es( 1 ), ss( 2 ):es( 2 ), ss( 3 ):es( 3 ) )
-!!$       End If
-!!$    End Do
+    ! Subsequent tree allocates to right size unlike earlier efforts
+    ! Need to rationalise this but let's get message passing right first
+    Real( wp ), Dimension( :, :, : ), Allocatable :: temp
 
+    error = 0
+
+    Call H%dim_plans( 1 )%fill( H%corners, gin, temp )
+    Hout = temp
+    
   End Subroutine halo_fill
 
 End Module halo_parallel_module
