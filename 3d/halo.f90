@@ -6,7 +6,7 @@ Program halo3
 
   Use mpi_f08, Only : mpi_comm, mpi_comm_world, mpi_init, mpi_comm_size, mpi_comm_rank, mpi_finalize, &
        mpi_allreduce, mpi_in_place, mpi_integer, mpi_sum, mpi_bcast, mpi_barrier, mpi_cart_create, &
-       mpi_cart_coords, mpi_dims_create
+       mpi_cart_coords, mpi_dims_create, mpi_cart_sub, mpi_comm_free
 
   Use swap_module, Only : halo_dim_plan_type
 
@@ -17,6 +17,7 @@ Program halo3
   Type( halo_parallel_setter_2 ) :: H
 
   Type( mpi_comm ) :: cart_comm
+  Type( mpi_comm ) :: plane_comm
   
   Real( wp ), Dimension( :, :, : ), Allocatable :: data_3d
   Real( wp ), Dimension( :, :, : ), Allocatable :: data_3d_with_halo
@@ -36,9 +37,11 @@ Program halo3
   Integer, Dimension( 1:3 ) :: n_3d
   Integer, Dimension( 1:3 ) :: np_grid, p_coords
 
+  Logical, Dimension( 1:3 ) :: is_this_axis, is_this_orthog_plane
+  
   Integer :: n
   Integer :: n_data
-  Integer :: rank, nprc, me_cart
+  Integer :: rank, nprc, me_cart, me_plane
   Integer :: n_halo
   Integer :: out
   Integer :: check_val
@@ -125,11 +128,25 @@ Program halo3
   ! Get the coordinates for this processor in the process grid
   Call mpi_comm_rank( cart_comm, me_cart,    error )
   Call mpi_cart_coords( cart_comm, me_cart, 3, p_coords )
-  Write( *, * ) 'where ', rank, p_coords
 
-  Call Random_number( rtmp_3d )
-  n_data_3d = 1 + Int( 9.0 * rtmp_3d )
-  Call mpi_comm_rank( cart_comm, me_cart,    error )
+  ! Generate grid dims
+  Do i = 1, 3
+     is_this_axis = .False.
+     is_this_axis( i ) = .True.
+     ! Take the plane orthogonal to it
+     is_this_orthog_plane = .Not. is_this_axis
+     ! Create a communicator containg this process in that plane
+     Call mpi_cart_sub( cart_comm, is_this_orthog_plane, plane_comm )
+     ! Zero proc in plane decides dimension
+     Call mpi_comm_rank( plane_comm, me_plane, error )
+     If( me_plane == 0 ) Then
+        Call Random_number( rtmp_3d )
+        n_data_3d = 1 + Int( 9.0 * rtmp_3d )
+     End If
+     Call mpi_bcast( n_data_3d, Size( n_data_3d ), mpi_integer, 0, plane_comm, error )
+     Call mpi_comm_free( plane_comm, error )
+  End Do
+
   Allocate( n_data_all_3d( 1:3, 0:nprc - 1 ) )
   n_data_all_3d = 0
   n_data_all_3d( :, rank ) = n_data_3d
@@ -156,8 +173,8 @@ Program halo3
   i_end_3d = i_start_3d + n_data_all_3d - 1
 
   Call H%init( n_data_3d, n_halo, cart_comm, error )
-  Write( *, * ) 'Error = ', error
   If( error /= 0 ) Then
+     Write( *, * ) 'Error = ', error, rank
      Call mpi_finalize( error )
      Stop
   End If
