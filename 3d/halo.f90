@@ -32,8 +32,6 @@ Program halo3
   Real( wp ), Dimension( :, :, : ), Allocatable :: data_3d
   Real( wp ), Dimension( :, :, : ), Allocatable :: data_3d_with_halo
   
-  Real, Dimension( 1:3 ) :: rtmp_3d
-
   Real :: rtmp
 
   Integer, Dimension( : ), Allocatable :: data
@@ -74,8 +72,6 @@ Program halo3
      n_halo = 1 + Int( 20.0 * rtmp )
   End If
   Call mpi_bcast( n_halo, 1, mpi_integer, 0, mpi_comm_world, error )
-  !HACK
-  n_halo = 1
 
   Call Random_number( rtmp )
   n_data = 1 + Int( 15.0 * rtmp )
@@ -156,8 +152,6 @@ Program halo3
      If( me_plane == 0 ) Then
         Call Random_number( rtmp )
         n_data_3d( i ) = 1 + Int( 9.0 * rtmp )
-!!$        ! HACK
-!!$        n_data_3d = 2
      End If
      Call mpi_bcast( n_data_3d( i ), 1, mpi_integer, 0, plane_comm, error )
      Call mpi_comm_free( plane_comm, error )
