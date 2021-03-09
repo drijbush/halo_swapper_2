@@ -154,12 +154,12 @@ Program halo3
      ! Zero proc in plane decides dimension
      Call mpi_comm_rank( plane_comm, me_plane, error )
      If( me_plane == 0 ) Then
-        Call Random_number( rtmp_3d )
-        n_data_3d = 1 + Int( 9.0 * rtmp_3d )
-        ! HACK
-        n_data_3d = 2
+        Call Random_number( rtmp )
+        n_data_3d( i ) = 1 + Int( 9.0 * rtmp )
+!!$        ! HACK
+!!$        n_data_3d = 2
      End If
-     Call mpi_bcast( n_data_3d, Size( n_data_3d ), mpi_integer, 0, plane_comm, error )
+     Call mpi_bcast( n_data_3d( i ), 1, mpi_integer, 0, plane_comm, error )
      Call mpi_comm_free( plane_comm, error )
   End Do
   Do i = 1, 3
@@ -179,8 +179,6 @@ Program halo3
      n_3d( i ) = Sum( n_data_all_3d( i )%n )
   End Do
 
-  !HACK
-!!$  n_data_3d = 3
 
   If( rank == 0 ) Then
      Write( *, * ) '!!!!!!!!!!'
