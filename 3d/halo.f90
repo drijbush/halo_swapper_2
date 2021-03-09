@@ -69,7 +69,8 @@ Program halo3
 
   If( rank == 0 ) Then
      Call Random_number( rtmp )
-     n_halo = 1 + Int( 20.0 * rtmp )
+!!$     n_halo = 1 + Int( 20.0 * rtmp )
+     n_halo = 2
   End If
   Call mpi_bcast( n_halo, 1, mpi_integer, 0, mpi_comm_world, error )
 
@@ -151,7 +152,8 @@ Program halo3
      Call mpi_comm_rank( plane_comm, me_plane, error )
      If( me_plane == 0 ) Then
         Call Random_number( rtmp )
-        n_data_3d( i ) = 1 + Int( 9.0 * rtmp )
+!!$        n_data_3d( i ) = 1 + Int( 9.0 * rtmp )
+        n_data_3d( i ) = 1
      End If
      Call mpi_bcast( n_data_3d( i ), 1, mpi_integer, 0, plane_comm, error )
      Call mpi_comm_free( plane_comm, error )
@@ -221,7 +223,9 @@ Program halo3
      End Do
   End Do
 
-  Allocate( data_3d_with_halo( sx - n_halo:ex + n_halo, sy - n_halo:ey + n_halo, sz:ez ) )
+!!$  Allocate( data_3d_with_halo( sx - n_halo:ex + n_halo, sy - n_halo:ey + n_halo, sz:ez ) )
+  Allocate( data_3d_with_halo( sx - n_halo:ex + n_halo, &
+       sy - n_halo:ey + n_halo, sz - n_halo:ez + n_halo ) )
   
   Call H%fill( n_halo, n_data_3d, data_3d, data_3d_with_halo, error )
   
@@ -233,6 +237,8 @@ Program halo3
   worked_size = worked_size .And. Lbound( data_3d_with_halo, Dim = 1 ) == sx - n_halo
   worked_size = worked_size .And. Ubound( data_3d_with_halo, Dim = 2 ) == ey + n_halo
   worked_size = worked_size .And. Lbound( data_3d_with_halo, Dim = 2 ) == sy - n_halo
+  worked_size = worked_size .And. Ubound( data_3d_with_halo, Dim = 3 ) == ez + n_halo
+  worked_size = worked_size .And. Lbound( data_3d_with_halo, Dim = 3 ) == sz - n_halo
 !!$  Write( out, * )
 !!$  Write( out, * ) np_grid, g_ranks, p_coords
 !!$  Write( out, * ) n_halo, n_3d
@@ -254,16 +260,21 @@ Program halo3
         End Do
      End Do
   End Do
-!!$  Write( out, * )
-!!$  Do iz = Lbound( data_3d, Dim = 3 ), Ubound( data_3d, Dim = 3 )
-!!$     Write( out, * ) iz
-!!$     Write( out, '( 2( 2( i3, 1x ) / ) )' ) Nint( data_3d( :, :, iz ) )
-!!$  End Do
-!!$  Write( out, * ) 'with halo'
-!!$  Do iz = Lbound( data_3d_with_halo, Dim = 3 ), Ubound( data_3d_with_halo, Dim = 3 )
-!!$     Write( out, * ) iz
-!!$     Write( out, '( 2( 4( i3, 1x ) / ) )' ) Nint( data_3d_with_halo( :, :, iz ) )
-!!$  End Do
+  Write( out, * )
+  Write( out, * ) 'No halo'
+  Do iz = Lbound( data_3d, Dim = 3 ), Ubound( data_3d, Dim = 3 )
+     Do iy = Lbound( data_3d, Dim = 2 ), Ubound( data_3d, Dim = 2 )
+        Write( out, * ) iy, iz
+        Write( out, '( 1000( i3, 1x ) )' ) Nint( data_3d( :, iy, iz ) )
+     End Do
+  End Do
+  Write( out, * ) 'with halo'
+  Do iz = Lbound( data_3d_with_halo, Dim = 3 ), Ubound( data_3d_with_halo, Dim = 3 )
+     Do iy = Lbound( data_3d_with_halo, Dim = 2 ), Ubound( data_3d_with_halo, Dim = 2 )
+        Write( out, * ) iy, iz
+        Write( out, '( 1000( i3, 1x ) )' ) Nint( data_3d_with_halo( :, iy, iz ) )
+     End Do
+  End Do
   Write( output_unit, * ) 'Checking rank ', rank, worked_size, worked_data
   If( ( .Not. worked_size ) .Or. ( .Not. worked_data ) ) Write( output_unit, * ) rank, ' BUSTED', n_halo
   
