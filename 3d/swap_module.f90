@@ -700,7 +700,8 @@ Contains
     Real( wp )             , Dimension( :, :, : ), Intent( In    )              :: data
     Real( wp )             , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
 
-    Real( wp ), Dimension( : ), Allocatable :: buffer
+    Real( wp ), Dimension( : ), Allocatable :: buffer_send
+    Real( wp ), Dimension( : ), Allocatable :: buffer_recv
     
     Type( mpi_request ), Dimension( 1:2 ) :: requests
 
@@ -727,11 +728,12 @@ Contains
        n_loc_y = Size( data, Dim = 2 )
        n_loc_z = Size( data, Dim = 3 )
     End If
-    
+
     Allocate( data_with_halo( plan%i_start - n_halo:plan%i_end, 1:n_loc_y, n_loc_z ) )
     data_with_halo( plan%i_start:plan%i_end, :, : ) = data
 
-    Allocate( buffer( 1:n_halo * n_loc_y * n_loc_z ) )
+    Allocate( buffer_send( 1:n_halo * n_loc_y * n_loc_z ) )
+    Allocate( buffer_recv( 1:n_halo * n_loc_y * n_loc_z ) )
 
     Do i = 1, Size( plan%steps )
 
@@ -742,23 +744,27 @@ Contains
        
        ! Send out data and Recieve new data
        If( n_wanted > 0 ) Then
-          Call copy_in( can_give, [ 1, n_loc_y ], [ 1, n_loc_z ], Lbound( data_with_halo ), data_with_halo, buffer )
+          Call copy_in( can_give, [ 1, n_loc_y ], [ 1, n_loc_z ], Lbound( data_with_halo ), data_with_halo, buffer_send )
           nx = can_give( 2 ) - can_give( 1 ) + 1
           n_msg = nx * n_loc_y * n_loc_z
-          Call mpi_isend( buffer, n_msg, plan%real_handle, next, SWAP_3D_LEFT, comm, requests( 1 ), error )
+          Call mpi_isend( buffer_send, n_msg, plan%real_handle, next, SWAP_3D_LEFT, comm, requests( 1 ), error )
        Else
           requests( 1 ) = mpi_request_null
        End If
        If( n_want > 0 ) Then
           nx = got( 2 ) - got( 1 ) + 1
           n_msg = nx * n_loc_y * n_loc_z
-          Call mpi_irecv( buffer, n_msg, plan%real_handle, prev, SWAP_3D_LEFT, comm, requests( 2 ), error )
-          Call copy_out( got, [ 1, n_loc_y ], [ 1, n_loc_z ], Lbound( data_with_halo ), buffer, data_with_halo )
+          Call mpi_irecv( buffer_recv, n_msg, plan%real_handle, prev, SWAP_3D_LEFT, comm, requests( 2 ), error )
        Else
           requests( 2 ) = mpi_request_null
        End If
        Call mpi_waitall( Size( requests ), requests, mpi_statuses_ignore, error )
-
+       If( n_want > 0 ) Then
+          nx = got( 2 ) - got( 1 ) + 1
+          n_msg = nx * n_loc_y * n_loc_z
+          Call copy_out( got, [ 1, n_loc_y ], [ 1, n_loc_z ], Lbound( data_with_halo ), buffer_recv, data_with_halo )
+       End If
+          
     End Do
     
   End Subroutine swap_real_3d_left_x
@@ -775,7 +781,8 @@ Contains
     Real( wp )             , Dimension( :, :, : ), Intent( In    )              :: data
     Real( wp )             , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
 
-    Real( wp ), Dimension( : ), Allocatable :: buffer
+    Real( wp ), Dimension( : ), Allocatable :: buffer_send
+    Real( wp ), Dimension( : ), Allocatable :: buffer_recv
     
     Type( mpi_request ), Dimension( 1:2 ) :: requests
 
@@ -806,7 +813,8 @@ Contains
     Allocate( data_with_halo( plan%i_start - n_halo:plan%i_end + n_halo, 1:n_loc_y, n_loc_z ) )
     data_with_halo( plan%i_start - n_halo:plan%i_end, :, : ) = data
 
-    Allocate( buffer( 1:n_halo * n_loc_y * n_loc_z ) )
+    Allocate( buffer_send( 1:n_halo * n_loc_y * n_loc_z ) )
+    Allocate( buffer_recv( 1:n_halo * n_loc_y * n_loc_z ) )
 
     Do i = 1, Size( plan%steps )
 
@@ -817,22 +825,26 @@ Contains
        
        ! Send out data and Recieve new data
        If( n_wanted > 0 ) Then
-          Call copy_in( can_give, [ 1, n_loc_y ], [ 1, n_loc_z ], Lbound( data_with_halo ), data_with_halo, buffer )
+          Call copy_in( can_give, [ 1, n_loc_y ], [ 1, n_loc_z ], Lbound( data_with_halo ), data_with_halo, buffer_send )
           nx = can_give( 2 ) - can_give( 1 ) + 1
           n_msg = nx * n_loc_y * n_loc_z
-          Call mpi_isend( buffer, n_msg, plan%real_handle, prev, SWAP_3D_RIGHT, comm, requests( 1 ), error )
+          Call mpi_isend( buffer_send, n_msg, plan%real_handle, prev, SWAP_3D_RIGHT, comm, requests( 1 ), error )
        Else
           requests( 1 ) = mpi_request_null
        End If
        If( n_want > 0 ) Then
           nx = got( 2 ) - got( 1 ) + 1
           n_msg = nx * n_loc_y * n_loc_z
-          Call mpi_irecv( buffer, n_msg, plan%real_handle, next, SWAP_3D_RIGHT, comm, requests( 2 ), error )
-          Call copy_out( got, [ 1, n_loc_y ], [ 1, n_loc_z ], Lbound( data_with_halo ), buffer, data_with_halo )
+          Call mpi_irecv( buffer_recv, n_msg, plan%real_handle, next, SWAP_3D_RIGHT, comm, requests( 2 ), error )
        Else
           requests( 2 ) = mpi_request_null
        End If
        Call mpi_waitall( Size( requests ), requests, mpi_statuses_ignore, error )
+       If( n_want > 0 ) Then
+          nx = got( 2 ) - got( 1 ) + 1
+          n_msg = nx * n_loc_y * n_loc_z
+          Call copy_out( got, [ 1, n_loc_y ], [ 1, n_loc_z ], Lbound( data_with_halo ), buffer_recv, data_with_halo )
+       End If
 
     End Do
     
@@ -908,7 +920,7 @@ Contains
        
   End Subroutine copy_in
     
-  Pure Subroutine copy_out( xb, yb, zb, lb, buff, in )
+  Pure Subroutine copy_out( xb, yb, zb, lb, buff, out )
 
     Use constants, Only : wp
 
@@ -917,7 +929,7 @@ Contains
     Integer   , Dimension( 1:2     ), Intent( In    ) :: zb
     Integer   , Dimension( 1:3     ), Intent( In    ) :: lb
     Real( wp ), Dimension( :       ), Intent( In    ) :: buff
-    Real( wp ), Dimension( lb( 1 ):, lb( 2 ):, lb( 3 ): ), Intent(   Out ) :: in
+    Real( wp ), Dimension( lb( 1 ):, lb( 2 ):, lb( 3 ): ), Intent(   Out ) :: out
 
     Integer :: ib
     Integer :: ix, iy, iz
@@ -927,7 +939,7 @@ Contains
        Do iy = yb( 1 ), yb( 2 )
           Do ix = xb( 1 ), xb( 2 )
              ib = ib + 1
-             in( ix, iy, iz ) = buff( ib )
+             out( ix, iy, iz ) = buff( ib )
           End Do
        End Do
     End Do
