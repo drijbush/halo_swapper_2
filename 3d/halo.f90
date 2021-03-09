@@ -221,13 +221,18 @@ Program halo3
      End Do
   End Do
 
-  Allocate( data_3d_with_halo( sx - n_halo:ex + n_halo, sy:ey, sz:ez ) )
+  Allocate( data_3d_with_halo( sx - n_halo:ex + n_halo, sy - n_halo:ey + n_halo, sz:ez ) )
   
   Call H%fill( n_halo, n_data_3d, data_3d, data_3d_with_halo, error )
   
   Call mpi_barrier( mpi_comm_world, error )
+  If( rank == 0 ) Then
+     Write( *, * ) 'Shapes ', n_halo, Shape( data_3d ), Shape( data_3d_with_halo )
+  End If
   worked_size = Ubound( data_3d_with_halo, Dim = 1 ) == ex + n_halo
   worked_size = worked_size .And. Lbound( data_3d_with_halo, Dim = 1 ) == sx - n_halo
+  worked_size = worked_size .And. Ubound( data_3d_with_halo, Dim = 2 ) == ey + n_halo
+  worked_size = worked_size .And. Lbound( data_3d_with_halo, Dim = 2 ) == sy - n_halo
 !!$  Write( out, * )
 !!$  Write( out, * ) np_grid, g_ranks, p_coords
 !!$  Write( out, * ) n_halo, n_3d

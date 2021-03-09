@@ -4,7 +4,7 @@ Module halo_parallel_module
   ! 1) Rationalise error codes
   ! 2) Add flags for orthogonal cells which avoid unneccesary comms
 
-  Use swap_module, Only : halo_dim_plan_type 
+  Use swap_module, Only : halo_dim_plan_type, FILL_X, FILL_Y
 
   Use mpi_f08, Only : mpi_comm, mpi_request
 
@@ -171,13 +171,15 @@ Contains
 
     ! Subsequent calling tree allocates to right size unlike earlier efforts
     ! Need to rationalise this but let's get message passing right first
-    Real( wp ), Dimension( :, :, : ), Allocatable :: temp
+    Real( wp ), Dimension( :, :, : ), Allocatable :: temp1
+    Real( wp ), Dimension( :, :, : ), Allocatable :: temp2
 
     error = 0
 
     ! Just x sorted so far - let's get that going then look at subsequent
-    Call H%dim_plans( 1 )%fill( H%corners, gin, temp )
-    Hout = temp
+    Call H%dim_plans( 1 )%fill( FILL_X, H%corners, gin  , temp1 )
+    Call H%dim_plans( 2 )%fill( FILL_Y, H%corners, temp1, temp2 )
+    Hout = temp2
     
   End Subroutine halo_fill
 
