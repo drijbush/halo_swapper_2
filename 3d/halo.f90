@@ -36,9 +36,6 @@ Program halo3
 
   Real :: rtmp
 
-!!$  Integer, Dimension( :, : ), Allocatable :: n_data_all_3d
-!!$  Integer, Dimension( :, : ), Allocatable :: i_start_3d, i_end_3d
-
   Integer, Dimension( : ), Allocatable :: data
   Integer, Dimension( : ), Allocatable :: n_data_all
   Integer, Dimension( : ), Allocatable :: i_start, i_end
@@ -222,18 +219,8 @@ Program halo3
      Stop
   End If
 
-!!$  Allocate( data_3d( i_start_3d( 1, rank ):i_end_3d( 1, rank ), &
-!!$       i_start_3d( 2, rank ):i_end_3d( 2, rank ), &
-!!$       i_start_3d( 3, rank ):i_end_3d( 3, rank ) ) )
   Allocate( data_3d( sx:ex, sy:ey, sz:ez ) )
   
-!!$  Do iz = i_start_3d( 3, rank ), i_end_3d( 3, rank )
-!!$     Do iy = i_start_3d( 2, rank ), i_end_3d( 2, rank )
-!!$        Do ix = i_start_3d( 1, rank ), i_end_3d( 1, rank )
-!!$           data_3d( ix, iy, iz ) = ix + base * iy + base * base * iz
-!!$        End Do
-!!$     End Do
-!!$  End Do
   Do iz = sz, ez
      Do iy = sy, ey
         Do ix = sx, ex
@@ -242,17 +229,11 @@ Program halo3
      End Do
   End Do
 
-!!$  Allocate( data_3d_with_halo, Source = data_3d )
-!!$  Allocate( data_3d_with_halo( i_start_3d( 1, rank ) - n_halo:i_end_3d( 1, rank ) + n_halo, &
-!!$       i_start_3d( 2, rank ):i_end_3d( 2, rank ), &
-!!$       i_start_3d( 3, rank ):i_end_3d( 3, rank ) ) )
   Allocate( data_3d_with_halo( sx - n_halo:ex + n_halo, sy:ey, sz:ez ) )
   
   Call H%fill( n_halo, n_data_3d, data_3d, data_3d_with_halo, error )
   
   Call mpi_barrier( mpi_comm_world, error )
-!!$  worked_size = Ubound( data_3d_with_halo, Dim = 1 ) == i_end_3d( 1, rank ) + n_halo
-!!$  worked_size = worked_size .And. Lbound( data_3d_with_halo, Dim = 1 ) == i_start_3d( 1, rank ) - n_halo
   worked_size = Ubound( data_3d_with_halo, Dim = 1 ) == ex + n_halo
   worked_size = worked_size .And. Lbound( data_3d_with_halo, Dim = 1 ) == sx - n_halo
 !!$  Write( out, * )
