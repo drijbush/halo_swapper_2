@@ -255,13 +255,13 @@ Program halo3
 !!$  worked_size = worked_size .And. Lbound( data_3d_with_halo, Dim = 1 ) == i_start_3d( 1, rank ) - n_halo
   worked_size = Ubound( data_3d_with_halo, Dim = 1 ) == ex + n_halo
   worked_size = worked_size .And. Lbound( data_3d_with_halo, Dim = 1 ) == sx - n_halo
-  Write( out, * )
-  Write( out, * ) np_grid, g_ranks, p_coords
-  Write( out, * ) n_halo, n_3d
-  Write( out, * ) sx, sy, sz, ex, ey, ez
-  Write( out, * ) Lbound( data_3d, Dim = 1 ), Ubound( data_3d, Dim = 1 )
-  Write( out, * ) Lbound( data_3d_with_halo, Dim = 1 ), Ubound( data_3d_with_halo, Dim = 1 )
-  Write( out, * )
+!!$  Write( out, * )
+!!$  Write( out, * ) np_grid, g_ranks, p_coords
+!!$  Write( out, * ) n_halo, n_3d
+!!$  Write( out, * ) sx, sy, sz, ex, ey, ez
+!!$  Write( out, * ) Lbound( data_3d, Dim = 1 ), Ubound( data_3d, Dim = 1 )
+!!$  Write( out, * ) Lbound( data_3d_with_halo, Dim = 1 ), Ubound( data_3d_with_halo, Dim = 1 )
+!!$  Write( out, * )
   worked_data = .True.
   Do iz = Lbound( data_3d_with_halo, Dim = 3 ), Ubound( data_3d_with_halo, Dim = 3 )
      Do iy = Lbound( data_3d_with_halo, Dim = 2 ), Ubound( data_3d_with_halo, Dim = 2 )
@@ -276,18 +276,16 @@ Program halo3
         End Do
      End Do
   End Do
-  Write( out, * )
-  Do iz = Lbound( data_3d, Dim = 3 ), Ubound( data_3d, Dim = 3 )
-     Write( *, * ) iz
-     Write( out, '( 2( 2( i3, 1x ) / ) )' ) Nint( data_3d( :, :, iz ) )
-  End Do
-  Write( out, * ) 'with halo'
-  Do iz = Lbound( data_3d_with_halo, Dim = 3 ), Ubound( data_3d_with_halo, Dim = 3 )
-     Write( *, * ) iz
-     Write( out, '( 2( 4( i3, 1x ) / ) )' ) Nint( data_3d_with_halo( :, :, iz ) )
-  End Do
-  Write( *, * ) rank, Maxval( data_3d ), Minval( data_3d )
-  Write( *, * ) rank, Maxval( data_3d_with_halo ), Minval( data_3d_with_halo )
+!!$  Write( out, * )
+!!$  Do iz = Lbound( data_3d, Dim = 3 ), Ubound( data_3d, Dim = 3 )
+!!$     Write( out, * ) iz
+!!$     Write( out, '( 2( 2( i3, 1x ) / ) )' ) Nint( data_3d( :, :, iz ) )
+!!$  End Do
+!!$  Write( out, * ) 'with halo'
+!!$  Do iz = Lbound( data_3d_with_halo, Dim = 3 ), Ubound( data_3d_with_halo, Dim = 3 )
+!!$     Write( out, * ) iz
+!!$     Write( out, '( 2( 4( i3, 1x ) / ) )' ) Nint( data_3d_with_halo( :, :, iz ) )
+!!$  End Do
   Write( output_unit, * ) 'Checking rank ', rank, worked_size, worked_data
   If( ( .Not. worked_size ) .Or. ( .Not. worked_data ) ) Write( output_unit, * ) rank, ' BUSTED', n_halo
   

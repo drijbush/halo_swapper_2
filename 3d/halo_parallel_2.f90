@@ -63,7 +63,6 @@ Contains
     Integer :: ndims
     Integer :: n_loc_max, n_loc_min
     Integer :: i
-    Integer :: tmp
 
     Logical, Dimension( 1:3 ) :: is_this_axis
     Logical, Dimension( 1:3 ) :: is_this_orthog_plane
@@ -129,8 +128,6 @@ Contains
        is_this_axis( i ) = .True.
        Call mpi_cart_sub( comm, is_this_axis, axis_comm )
        ! Now get the plans
-       Call mpi_comm_size( axis_comm, tmp, error )
-       Write( *, * ) '!!!!!!!!!!!!!!!!!! ', i, tmp
        Call H%dim_plans( i )%init( local_size( i ), halo_width, axis_comm, error )
        ! And inquire of the plans some useful data
        Call H%dim_plans( i )%inquire( i_start = H%first_point( i ), i_end = H%last_point( i ), n_tot = H%total_size( i ) )
