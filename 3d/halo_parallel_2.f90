@@ -170,6 +170,9 @@ Contains
     Integer,                                                     Intent(   Out ) :: error
 
     Integer, Dimension( 1:3 ) :: lb_current
+    Integer, Dimension( 1:3 ) :: ub_current
+    Integer, Dimension( 1:3 ) :: lb_h
+    Integer, Dimension( 1:3 ) :: ub_h
 
     ! Subsequent calling tree allocates to right size unlike earlier efforts
     ! Need to rationalise this but let's get message passing right first
@@ -179,18 +182,28 @@ Contains
     error = 0
 
     lb_current = H%first_point
-    
-    ! Just x sorted so far - let's get that going then look at subsequent
-    Call H%dim_plans( 1 )%fill( FILL_X, lb_current, gin  , temp1 )
-    lb_current( 1 ) = lb_current( 1 ) - H%halo_width
-    
-    Call H%dim_plans( 2 )%fill( FILL_Y, lb_current, temp1, temp2 )
-    lb_current( 2 ) = lb_current( 2 ) - H%halo_width
+    ub_current = H%last_point
 
-    Call H%dim_plans( 3 )%fill( FILL_Z, lb_current, temp2, temp1  )
-    lb_current( 3 ) = lb_current( 3 ) - H%halo_width
+    lb_h = lb_current
+    ub_h = ub_current
+
+    lb_h( 1 ) = lb_h( 1 ) - H%halo_width
+    ub_h( 1 ) = ub_h( 1 ) + H%halo_width
+    Allocate( temp1( lb_h( 1 ):ub_h( 1 ), lb_h( 2 ):ub_h( 2 ), lb_h( 3 ):ub_h( 3 ) ) )
+    Call H%dim_plans( 1 )%fill( FILL_X, lb_current, gin  , temp1 )
+    lb_current = lb_h
+    ub_current = ub_h
     
-    Hout = temp1
+    lb_h( 2 ) = lb_h( 2 ) - H%halo_width
+    ub_h( 2 ) = ub_h( 2 ) + H%halo_width
+    Allocate( temp2( lb_h( 1 ):ub_h( 1 ), lb_h( 2 ):ub_h( 2 ), lb_h( 3 ):ub_h( 3 ) ) )
+    Call H%dim_plans( 2 )%fill( FILL_Y, lb_current, temp1, temp2 )
+    lb_current = lb_h
+    ub_current = ub_h
+
+    Call H%dim_plans( 3 )%fill( FILL_Z, lb_current, temp2, Hout  )
+    lb_current = lb_h
+    ub_current = ub_h
     
   End Subroutine halo_fill
 

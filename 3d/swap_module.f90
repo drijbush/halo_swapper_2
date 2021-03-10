@@ -153,7 +153,8 @@ Contains
     Integer                                                                  , Intent( In    )              :: which
     Integer                    , Dimension( 1:3                             ), Intent( In    )              :: lbd
     Real( wp )                 , Dimension( lbd( 1 ):, lbd( 2 ):, lbd( 3 ): ), Intent( In    )              :: data
-    Real( wp )                 , Dimension(         :,         :,         : ), Intent(   Out ), Allocatable :: data_with_halo
+!!$    Real( wp )                 , Dimension(         :,         :,         : ), Intent(   Out ), Allocatable :: data_with_halo
+    Real( wp )                 , Dimension(         :,         :,         : ), Intent(   Out ) :: data_with_halo
 
     Real( wp ), Dimension( :, :, : ), Allocatable :: temp
 
@@ -169,8 +170,8 @@ Contains
        Allocate( temp( lbd_h( 1 ):ubd_h( 1 ), lbd_h( 2 ):ubd_h( 2 ), lbd_h( 3 ):ubd_h( 3 ) ) )
        Call plan%left%swap_3d_x( lbd, data, lbd_h, temp )
        
-       ubd_h( 1 ) = ubd_h( 1 ) + plan%right%n_halo
-       Allocate( data_with_halo( lbd_h( 1 ):ubd_h( 1 ), lbd_h( 2 ):ubd_h( 2 ), lbd_h( 3 ):ubd_h( 3 ) ) )
+!!$       ubd_h( 1 ) = ubd_h( 1 ) + plan%right%n_halo
+!!$       Allocate( data_with_halo( lbd_h( 1 ):ubd_h( 1 ), lbd_h( 2 ):ubd_h( 2 ), lbd_h( 3 ):ubd_h( 3 ) ) )
        Call plan%right%swap_3d_x( lbd_h, temp, lbd_h, data_with_halo )
 
     Case( FILL_Y )
@@ -178,8 +179,8 @@ Contains
        Allocate( temp( lbd_h( 1 ):ubd_h( 1 ), lbd_h( 2 ):ubd_h( 2 ), lbd_h( 3 ):ubd_h( 3 ) ) )
        Call plan%left%swap_3d_y( lbd, data, lbd_h, temp )
        
-       ubd_h( 2 ) = ubd_h( 2 ) + plan%right%n_halo
-       Allocate( data_with_halo( lbd_h( 1 ):ubd_h( 1 ), lbd_h( 2 ):ubd_h( 2 ), lbd_h( 3 ):ubd_h( 3 ) ) )
+!!$       ubd_h( 2 ) = ubd_h( 2 ) + plan%right%n_halo
+!!$       Allocate( data_with_halo( lbd_h( 1 ):ubd_h( 1 ), lbd_h( 2 ):ubd_h( 2 ), lbd_h( 3 ):ubd_h( 3 ) ) )
        Call plan%right%swap_3d_y( lbd_h, temp, lbd_h, data_with_halo )
 
     Case( FILL_Z )
@@ -187,8 +188,8 @@ Contains
        Allocate( temp( lbd_h( 1 ):ubd_h( 1 ), lbd_h( 2 ):ubd_h( 2 ), lbd_h( 3 ):ubd_h( 3 ) ) )
        Call plan%left%swap_3d_z( lbd, data, lbd_h, temp )
        
-       ubd_h( 3 ) = ubd_h( 3 ) + plan%right%n_halo
-       Allocate( data_with_halo( lbd_h( 1 ):ubd_h( 1 ), lbd_h( 2 ):ubd_h( 2 ), lbd_h( 3 ):ubd_h( 3 ) ) )
+!!$       ubd_h( 3 ) = ubd_h( 3 ) + plan%right%n_halo
+!!$       Allocate( data_with_halo( lbd_h( 1 ):ubd_h( 1 ), lbd_h( 2 ):ubd_h( 2 ), lbd_h( 3 ):ubd_h( 3 ) ) )
        Call plan%right%swap_3d_z( lbd_h, temp, lbd_h, data_with_halo )
 
     End Select
