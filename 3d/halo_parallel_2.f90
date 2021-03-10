@@ -25,12 +25,13 @@ Module halo_parallel_module
      Integer,                    Dimension( 1:3 ), Private :: n_procs
      Integer,                    Dimension( 1:3 ), Private :: my_coords
      Logical,                    Dimension( 1:3 ), Private :: is_periodic
-     Logical                                     , Private :: corners = .True.
+     Logical                                     , Private :: include_corners = .True.
      Type( halo_dim_plan_type ), Dimension( 1:3 ), Private :: dim_plans
    Contains
-     Generic,   Public  :: init => halo_parallel_init_old
-     Generic,   Public  :: init => halo_parallel_init_f08
-     Procedure, Public  :: fill => halo_fill
+     Generic,   Public  :: init        => halo_parallel_init_old
+     Generic,   Public  :: init        => halo_parallel_init_f08
+     Procedure, Public  :: fill        => halo_fill
+     Procedure, Public  :: set_corners => halo_set_corners
      Procedure, Private :: halo_parallel_init_old
      Procedure, Private :: halo_parallel_init_f08
   End Type halo_parallel_setter_2
@@ -176,10 +177,10 @@ Contains
     Integer, Dimension( 1:3 ) :: lb_h
     Integer, Dimension( 1:3 ) :: ub_h
 
-    ! Subsequent calling tree allocates to right size unlike earlier efforts
-    ! Need to rationalise this but let's get message passing right first
     Real( wp ), Dimension( :, :, : ), Allocatable :: temp1
     Real( wp ), Dimension( :, :, : ), Allocatable :: temp2
+
+    H%include_corners = .Not. All( hdlb == Huge( hdlb ) )
 
     error = 0
 
@@ -198,7 +199,7 @@ Contains
     Call H%dim_plans( 1 )%fill( FILL_X, lb_current, ind_range, gin  , temp1 )
     lb_current = lb_h
     ub_current = ub_h
-    If( H%corners ) Then
+    If( H%include_corners ) Then
        ind_range( :, 1 ) = [ lb_h( 1 ), ub_h( 1 ) ]
     End If
     
@@ -208,7 +209,7 @@ Contains
     Call H%dim_plans( 2 )%fill( FILL_Y, lb_current, ind_range, temp1, temp2 )
     lb_current = lb_h
     ub_current = ub_h
-    If( H%corners ) Then
+    If( H%include_corners ) Then
        ind_range( :, 2 ) = [ lb_h( 2 ), ub_h( 2 ) ]
     End If
 
@@ -218,4 +219,13 @@ Contains
     
   End Subroutine halo_fill
 
+  Subroutine halo_set_corners( H, include_corners )
+
+    Class( halo_parallel_setter_2 ), Intent( InOut ) :: H
+    Logical                        , Intent( In    ) :: include_corners
+
+    H%include_corners = include_corners
+
+  End Subroutine halo_set_corners
+  
 End Module halo_parallel_module
