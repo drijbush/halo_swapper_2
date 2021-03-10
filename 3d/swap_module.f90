@@ -160,8 +160,8 @@ Contains
     Select Case( which )
 
     Case( FILL_X )
-       Call plan%left%swap_3d_x ( data, temp           )
-       Call plan%right%swap_3d_x( temp, data_with_halo )
+       Call plan%left%swap_3d_x ( lbd, data, temp           )
+       Call plan%right%swap_3d_x( lbd, temp, data_with_halo )
 
     Case( FILL_Y )
        Call plan%left%swap_3d_y ( data, temp           )
@@ -514,17 +514,18 @@ Contains
 
   End Subroutine swap_int_1d
 
-  Subroutine swap_real_3d_x( plan, data, data_with_halo )
+  Subroutine swap_real_3d_x( plan, lbd, data, data_with_halo )
 
     Use constants, Only : wp
     
-    Class( halo_plan_type ),                       Intent( In    )              :: plan
-    Real( wp )             , Dimension( :, :, : ), Intent( In    )              :: data
-    Real( wp )             , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
+    Class( halo_plan_type ),                                               Intent( In    )              :: plan
+    Integer                , Dimension( 1:3                             ), Intent( In    )              :: lbd
+    Real( wp )             , Dimension( lbd( 1 ):, lbd( 2 ):, lbd( 3 ): ), Intent( In    )              :: data
+    Real( wp )             , Dimension( :, :, : )                        , Intent(   Out ), Allocatable :: data_with_halo
 
     Select Case( plan%direction )
     Case( LEFT )
-       Call plan%swap_left_3d_x( data, data_with_halo )
+       Call plan%swap_left_3d_x( lbd, data, data_with_halo )
     Case( RIGHT )
        Call plan%swap_right_3d_x( data, data_with_halo )
     End Select
@@ -745,16 +746,17 @@ Contains
 
   End Subroutine swap_int_1d_right
 
-  Subroutine swap_real_3d_left_x( plan, data, data_with_halo )
+  Subroutine swap_real_3d_left_x( plan, lbd, data, data_with_halo )
 
     Use mpi_f08, Only : mpi_comm, mpi_request_null, mpi_request, mpi_statuses_ignore, &
          mpi_comm_size, mpi_comm_rank, mpi_isend, mpi_irecv, mpi_waitall
 
     Use constants, Only : wp
 
-    Class( halo_plan_type ),                       Intent( In    )              :: plan
-    Real( wp )             , Dimension( :, :, : ), Intent( In    )              :: data
-    Real( wp )             , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
+    Class( halo_plan_type ),                                               Intent( In    )              :: plan
+    Integer                , Dimension( 1:3                             ), Intent( In    )              :: lbd
+    Real( wp )             , Dimension( lbd( 1 ):, lbd( 2 ):, lbd( 3 ): ), Intent( In    )              :: data
+    Real( wp )             , Dimension( :, :, : )                        , Intent(   Out ), Allocatable :: data_with_halo
 
     Real( wp ), Dimension( : ), Allocatable :: buffer_send
     Real( wp ), Dimension( : ), Allocatable :: buffer_recv
