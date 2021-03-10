@@ -1126,6 +1126,7 @@ Contains
     Type( mpi_comm ) :: comm
 
     Integer, Dimension( 1:3 ) :: ubd
+    Integer, Dimension( 1:3 ) :: ubd_h
     Integer, Dimension( 1:2 ) :: got
     Integer, Dimension( 1:2 ) :: can_give
 
@@ -1137,7 +1138,10 @@ Contains
     Integer :: error
     Integer :: i
 
-    ubd = Ubound( data )
+    Logical :: is_contiguous
+
+    ubd   = Ubound( data )
+    ubd_h = Ubound( data_with_halo )
 
     comm   = plan%comm
     prev   = plan%prev
@@ -1149,8 +1153,14 @@ Contains
 
     data_with_halo( lbd( 1 ):ubd( 1 ), lbd( 2 ):ubd( 2 ), lbd( 3 ):ubd( 3 ) ) = data
 
-    Allocate( buffer_send( 1:n_halo * n_loc_x * n_loc_y ) )
-    Allocate( buffer_recv( 1:n_halo * n_loc_x * n_loc_y ) )
+    ! Work out if data in messages will be contiguous
+    is_contiguous = lbd( 1 ) == lbd_h( 1 ) .And. lbd( 2 ) == lbd_h( 2 )
+
+    If( .Not. is_contiguous ) Then
+       ! Only need to buffer if data in messages is not contiguous
+       Allocate( buffer_send( 1:n_halo * n_loc_x * n_loc_y ) )
+       Allocate( buffer_recv( 1:n_halo * n_loc_x * n_loc_y ) )
+    End If
 
     Do i = 1, Size( plan%steps )
 
@@ -1161,27 +1171,41 @@ Contains
        
        ! Send out data and Recieve new data
        If( n_wanted > 0 ) Then
-          Call copy_in( [ lbd( 1 ), ubd( 1 ) ], [ lbd( 2 ), ubd( 2 ) ], can_give, &
-               Lbound( data_with_halo ), data_with_halo, buffer_send )
           nz = can_give( 2 ) - can_give( 1 ) + 1
           n_msg = nz * n_loc_x * n_loc_y
-          Call mpi_isend( buffer_send, n_msg, plan%real_handle, next, SWAP_3D_LEFT, comm, requests( 1 ), error )
+          ! In the z direction can possibly save a copy as the sending data might be contiguous
+          ! so we can send directly out of the grid, rather than buffering
+          If( is_contiguous ) Then
+             Call mpi_isend( data_with_halo( lbd( 1 ), lbd( 2 ), can_give( 1 ) ), n_msg, plan%real_handle, next, &
+                  SWAP_3D_LEFT, comm, requests( 1 ), error )
+          Else
+             Call copy_in( [ lbd( 1 ), ubd( 1 ) ], [ lbd( 2 ), ubd( 2 ) ], can_give, &
+                  Lbound( data_with_halo ), data_with_halo, buffer_send )
+             Call mpi_isend( buffer_send, n_msg, plan%real_handle, next, SWAP_3D_LEFT, comm, requests( 1 ), error )
+          End If
        Else
           requests( 1 ) = mpi_request_null
        End If
        If( n_want > 0 ) Then
           nz = got( 2 ) - got( 1 ) + 1
           n_msg = nz * n_loc_x * n_loc_y
-          Call mpi_irecv( buffer_recv, n_msg, plan%real_handle, prev, SWAP_3D_LEFT, comm, requests( 2 ), error )
+          If( is_contiguous ) Then
+             Call mpi_irecv( data_with_halo( lbd( 1 ), lbd( 2 ), got( 1 ) ), n_msg, plan%real_handle, prev, &
+                  SWAP_3D_LEFT, comm, requests( 2 ), error )
+          Else
+             Call mpi_irecv( buffer_recv, n_msg, plan%real_handle, prev, SWAP_3D_LEFT, comm, requests( 2 ), error )
+          End If
        Else
           requests( 2 ) = mpi_request_null
        End If
        Call mpi_waitall( Size( requests ), requests, mpi_statuses_ignore, error )
        If( n_want > 0 ) Then
-          nz = got( 2 ) - got( 1 ) + 1
-          n_msg = nz * n_loc_x * n_loc_y
-          Call copy_out( [ lbd( 1 ), ubd( 1 ) ], [ lbd( 2 ), ubd( 2 ) ], got, &
-               Lbound( data_with_halo ), buffer_recv, data_with_halo )
+          If( .Not. is_contiguous ) Then
+             nz = got( 2 ) - got( 1 ) + 1
+             n_msg = nz * n_loc_x * n_loc_y
+             Call copy_out( [ lbd( 1 ), ubd( 1 ) ], [ lbd( 2 ), ubd( 2 ) ], got, &
+                  Lbound( data_with_halo ), buffer_recv, data_with_halo )
+          End If
        End If
           
     End Do
