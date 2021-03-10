@@ -31,7 +31,7 @@ Module halo_parallel_module
      Generic,   Public  :: init        => halo_parallel_init_old
      Generic,   Public  :: init        => halo_parallel_init_f08
      Procedure, Public  :: fill        => halo_fill
-     Procedure, Public  :: set_corners => halo_set_corners
+     Procedure, Public  :: set_corners => halo_set_include_corners
      Procedure, Private :: halo_parallel_init_old
      Procedure, Private :: halo_parallel_init_f08
   End Type halo_parallel_setter_2
@@ -180,7 +180,7 @@ Contains
     Real( wp ), Dimension( :, :, : ), Allocatable :: temp1
     Real( wp ), Dimension( :, :, : ), Allocatable :: temp2
 
-    H%include_corners = .Not. All( hdlb == Huge( hdlb ) )
+!!$    H%include_corners = .Not. All( hdlb == Huge( hdlb ) )
 
     error = 0
 
@@ -219,13 +219,13 @@ Contains
     
   End Subroutine halo_fill
 
-  Subroutine halo_set_corners( H, include_corners )
+  Subroutine halo_set_include_corners( H, include_corners )
 
     Class( halo_parallel_setter_2 ), Intent( InOut ) :: H
     Logical                        , Intent( In    ) :: include_corners
 
     H%include_corners = include_corners
 
-  End Subroutine halo_set_corners
+  End Subroutine halo_set_include_corners
   
 End Module halo_parallel_module

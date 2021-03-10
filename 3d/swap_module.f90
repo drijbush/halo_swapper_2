@@ -1147,6 +1147,7 @@ Contains
 
     ! Work out if data in messages will be contiguous
     is_contiguous = lbd( 1 ) == lbd_h( 1 ) .And. lbd( 2 ) == lbd_h( 2 )
+    is_contiguous = is_contiguous .And. ( lbd( 1 ) == ind_range( 1, 1 ) .And. lbd( 2 ) == ind_range( 1, 2 ) )
 
     If( .Not. is_contiguous ) Then
        ! Only need to buffer if data in messages is not contiguous
@@ -1251,6 +1252,7 @@ Contains
 
     ! Work out if data in messages will be contiguous
     is_contiguous = lbd( 1 ) == lbd_h( 1 ) .And. lbd( 2 ) == lbd_h( 2 )
+    is_contiguous = is_contiguous .And. ( lbd( 1 ) == ind_range( 1, 1 ) .And. lbd( 2 ) == ind_range( 1, 2 ) )
 
     If( .Not. is_contiguous ) Then
        ! Only need to buffer if data in messages is not contiguous

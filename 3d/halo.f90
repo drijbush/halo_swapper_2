@@ -43,6 +43,8 @@ Program halo3
   Integer, Dimension( 1:3 ) :: np_grid, p_coords, n_coords, g_ranks
 
   Logical, Dimension( 1:3 ) :: is_this_axis, is_this_orthog_plane, is_periodic
+
+  Logical :: include_corners = .False.
   
   Integer :: n
   Integer :: n_data
@@ -71,6 +73,8 @@ Program halo3
      Call Random_number( rtmp )
      n_halo = 1 + Int( 20.0 * rtmp )
   End If
+!!$  !HACK
+!!$  n_halo = 1
   Call mpi_bcast( n_halo, 1, mpi_integer, 0, mpi_comm_world, error )
 
   Call Random_number( rtmp )
@@ -153,6 +157,8 @@ Program halo3
         Call Random_number( rtmp )
         n_data_3d( i ) = 1 + Int( 9.0 * rtmp )
      End If
+!!$     !HACK
+!!$     n_data_3d( i ) = 2
      Call mpi_bcast( n_data_3d( i ), 1, mpi_integer, 0, plane_comm, error )
      Call mpi_comm_free( plane_comm, error )
   End Do
@@ -205,6 +211,7 @@ Program halo3
   ez = i_end_3d( 3 )%n( g_ranks( 3 ) )
   
   Call H%init( n_data_3d, n_halo, cart_comm, error )
+  call H%set_corners( include_corners )
   If( error /= 0 ) Then
      Write( *, * ) 'Error = ', error, rank
      Call mpi_finalize( error )
@@ -237,27 +244,69 @@ Program halo3
   worked_size = worked_size .And. Lbound( data_3d_with_halo, Dim = 2 ) == sy - n_halo
   worked_size = worked_size .And. Ubound( data_3d_with_halo, Dim = 3 ) == ez + n_halo
   worked_size = worked_size .And. Lbound( data_3d_with_halo, Dim = 3 ) == sz - n_halo
-!!$  Write( out, * )
-!!$  Write( out, * ) np_grid, g_ranks, p_coords
-!!$  Write( out, * ) n_halo, n_3d
-!!$  Write( out, * ) sx, sy, sz, ex, ey, ez
-!!$  Write( out, * ) Lbound( data_3d, Dim = 1 ), Ubound( data_3d, Dim = 1 )
-!!$  Write( out, * ) Lbound( data_3d_with_halo, Dim = 1 ), Ubound( data_3d_with_halo, Dim = 1 )
-!!$  Write( out, * )
   worked_data = .True.
-  Do iz = Lbound( data_3d_with_halo, Dim = 3 ), Ubound( data_3d_with_halo, Dim = 3 )
-     Do iy = Lbound( data_3d_with_halo, Dim = 2 ), Ubound( data_3d_with_halo, Dim = 2 )
-        Do ix = Lbound( data_3d_with_halo, Dim = 1 ), Ubound( data_3d_with_halo, Dim = 1 )
-           check_val =                           Modulo( ix, n_3d( 1 ) )
-           check_val = check_val + base *        Modulo( iy, n_3d( 2 ) )
-           check_val = check_val + base * base * Modulo( iz, n_3d( 3 ) )
-           worked_data = worked_data .And. Nint( data_3d_with_halo( ix, iy, iz ) ) == check_val
-           If( Nint( data_3d_with_halo( ix, iy, iz ) ) /= check_val ) Then
-              Write( out, * ) ix, iy, iz, check_val, data_3d_with_halo( ix, iy, iz )
-           End If
+  If( include_corners ) Then
+     If( rank == 0 ) Then
+        Write( *, * ) 'Checking data INCLUDING corners'
+     End If
+     Do iz = Lbound( data_3d_with_halo, Dim = 3 ), Ubound( data_3d_with_halo, Dim = 3 )
+        Do iy = Lbound( data_3d_with_halo, Dim = 2 ), Ubound( data_3d_with_halo, Dim = 2 )
+           Do ix = Lbound( data_3d_with_halo, Dim = 1 ), Ubound( data_3d_with_halo, Dim = 1 )
+              check_val =                           Modulo( ix, n_3d( 1 ) )
+              check_val = check_val + base *        Modulo( iy, n_3d( 2 ) )
+              check_val = check_val + base * base * Modulo( iz, n_3d( 3 ) )
+              worked_data = worked_data .And. Nint( data_3d_with_halo( ix, iy, iz ) ) == check_val
+              If( Nint( data_3d_with_halo( ix, iy, iz ) ) /= check_val ) Then
+                 Write( out, * ) ix, iy, iz, check_val, data_3d_with_halo( ix, iy, iz )
+              End If
+           End Do
         End Do
      End Do
-  End Do
+  Else
+     If( rank == 0 ) Then
+        Write( *, * ) 'Checking data WITHOUT corners'
+     End If
+     Do iz = Lbound( data_3d_with_halo, Dim = 3 ), Ubound( data_3d_with_halo, Dim = 3 )
+        Do iy = Lbound( data_3d, Dim = 2 ), Ubound( data_3d, Dim = 2 )
+           Do ix = Lbound( data_3d, Dim = 1 ), Ubound( data_3d, Dim = 1 )
+              check_val =                           Modulo( ix, n_3d( 1 ) )
+              check_val = check_val + base *        Modulo( iy, n_3d( 2 ) )
+              check_val = check_val + base * base * Modulo( iz, n_3d( 3 ) )
+              worked_data = worked_data .And. Nint( data_3d_with_halo( ix, iy, iz ) ) == check_val
+              If( Nint( data_3d_with_halo( ix, iy, iz ) ) /= check_val ) Then
+                 Write( out, * ) ix, iy, iz, check_val, data_3d_with_halo( ix, iy, iz )
+              End If
+           End Do
+        End Do
+     End Do
+     Do iz = Lbound( data_3d, Dim = 3 ), Ubound( data_3d, Dim = 3 )
+        Do iy = Lbound( data_3d_with_halo, Dim = 2 ), Ubound( data_3d_with_halo, Dim = 2 )
+           Do ix = Lbound( data_3d, Dim = 1 ), Ubound( data_3d, Dim = 1 )
+              check_val =                           Modulo( ix, n_3d( 1 ) )
+              check_val = check_val + base *        Modulo( iy, n_3d( 2 ) )
+              check_val = check_val + base * base * Modulo( iz, n_3d( 3 ) )
+              worked_data = worked_data .And. Nint( data_3d_with_halo( ix, iy, iz ) ) == check_val
+              If( Nint( data_3d_with_halo( ix, iy, iz ) ) /= check_val ) Then
+                 Write( out, * ) ix, iy, iz, check_val, data_3d_with_halo( ix, iy, iz )
+              End If
+           End Do
+        End Do
+     End Do
+     Do iz = Lbound( data_3d, Dim = 3 ), Ubound( data_3d, Dim = 3 )
+        Do iy = Lbound( data_3d, Dim = 2 ), Ubound( data_3d, Dim = 2 )
+           Do ix = Lbound( data_3d_with_halo, Dim = 1 ), Ubound( data_3d_with_halo, Dim = 1 )
+              check_val =                           Modulo( ix, n_3d( 1 ) )
+              check_val = check_val + base *        Modulo( iy, n_3d( 2 ) )
+              check_val = check_val + base * base * Modulo( iz, n_3d( 3 ) )
+              worked_data = worked_data .And. Nint( data_3d_with_halo( ix, iy, iz ) ) == check_val
+              If( Nint( data_3d_with_halo( ix, iy, iz ) ) /= check_val ) Then
+                 Write( out, * ) ix, iy, iz, check_val, data_3d_with_halo( ix, iy, iz )
+              End If
+           End Do
+        End Do
+     End Do
+     
+  End If
   Write( out, * )
   Write( out, * ) 'No halo'
   Do iz = Lbound( data_3d, Dim = 3 ), Ubound( data_3d, Dim = 3 )
