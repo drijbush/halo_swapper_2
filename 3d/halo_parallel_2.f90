@@ -177,9 +177,9 @@ Contains
     error = 0
 
     ! Just x sorted so far - let's get that going then look at subsequent
-    Call H%dim_plans( 1 )%fill( FILL_X, H%corners, gin  , temp1 )
-    Call H%dim_plans( 2 )%fill( FILL_Y, H%corners, temp1, temp2 )
-    Call H%dim_plans( 3 )%fill( FILL_Z, H%corners, temp2, temp1  )
+    Call H%dim_plans( 1 )%fill( FILL_X, gin  , temp1 )
+    Call H%dim_plans( 2 )%fill( FILL_Y, temp1, temp2 )
+    Call H%dim_plans( 3 )%fill( FILL_Z, temp2, temp1  )
     Hout = temp1
     
   End Subroutine halo_fill

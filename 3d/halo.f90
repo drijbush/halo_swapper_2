@@ -69,8 +69,7 @@ Program halo3
 
   If( rank == 0 ) Then
      Call Random_number( rtmp )
-!!$     n_halo = 1 + Int( 20.0 * rtmp )
-     n_halo = 2
+     n_halo = 1 + Int( 20.0 * rtmp )
   End If
   Call mpi_bcast( n_halo, 1, mpi_integer, 0, mpi_comm_world, error )
 
@@ -152,8 +151,7 @@ Program halo3
      Call mpi_comm_rank( plane_comm, me_plane, error )
      If( me_plane == 0 ) Then
         Call Random_number( rtmp )
-!!$        n_data_3d( i ) = 1 + Int( 9.0 * rtmp )
-        n_data_3d( i ) = 1
+        n_data_3d( i ) = 1 + Int( 9.0 * rtmp )
      End If
      Call mpi_bcast( n_data_3d( i ), 1, mpi_integer, 0, plane_comm, error )
      Call mpi_comm_free( plane_comm, error )

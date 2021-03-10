@@ -145,13 +145,12 @@ Contains
 
   End Subroutine halo_dim_plan_fill_1d
 
-  Subroutine halo_dim_plan_fill_3d( plan, which, corners, data, data_with_halo )
+  Subroutine halo_dim_plan_fill_3d( plan, which, data, data_with_halo )
 
     Use constants, Only : wp
     
     Class( halo_dim_plan_type ),                       Intent( In    )              :: plan
     Integer                                          , Intent( In    )              :: which
-    Logical                                          , Intent( In    )              :: corners
     Real( wp )                 , Dimension( :, :, : ), Intent( In    )              :: data
     Real( wp )                 , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
 
@@ -160,16 +159,16 @@ Contains
     Select Case( which )
 
     Case( FILL_X )
-       Call plan%left%swap_3d_x ( corners, data, temp           )
-       Call plan%right%swap_3d_x( corners, temp, data_with_halo )
+       Call plan%left%swap_3d_x ( data, temp           )
+       Call plan%right%swap_3d_x( temp, data_with_halo )
 
     Case( FILL_Y )
-       Call plan%left%swap_3d_y ( corners, data, temp           )
-       Call plan%right%swap_3d_y( corners, temp, data_with_halo )
+       Call plan%left%swap_3d_y ( data, temp           )
+       Call plan%right%swap_3d_y( temp, data_with_halo )
 
     Case( FILL_Z )
-       Call plan%left%swap_3d_z ( corners, data, temp           )
-       Call plan%right%swap_3d_z( corners, temp, data_with_halo )
+       Call plan%left%swap_3d_z ( data, temp           )
+       Call plan%right%swap_3d_z( temp, data_with_halo )
 
     End Select
 
@@ -514,56 +513,53 @@ Contains
 
   End Subroutine swap_int_1d
 
-  Subroutine swap_real_3d_x( plan, corners, data, data_with_halo )
+  Subroutine swap_real_3d_x( plan, data, data_with_halo )
 
     Use constants, Only : wp
     
     Class( halo_plan_type ),                       Intent( In    )              :: plan
-    Logical                                      , Intent( In    )              :: corners
     Real( wp )             , Dimension( :, :, : ), Intent( In    )              :: data
     Real( wp )             , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
 
     Select Case( plan%direction )
     Case( LEFT )
-       Call plan%swap_left_3d_x( corners, data, data_with_halo )
+       Call plan%swap_left_3d_x( data, data_with_halo )
     Case( RIGHT )
-       Call plan%swap_right_3d_x( corners, data, data_with_halo )
+       Call plan%swap_right_3d_x( data, data_with_halo )
     End Select
 
   End Subroutine swap_real_3d_x
 
-  Subroutine swap_real_3d_y( plan, corners, data, data_with_halo )
+  Subroutine swap_real_3d_y( plan, data, data_with_halo )
 
     Use constants, Only : wp
     
     Class( halo_plan_type ),                       Intent( In    )              :: plan
-    Logical                                      , Intent( In    )              :: corners
     Real( wp )             , Dimension( :, :, : ), Intent( In    )              :: data
     Real( wp )             , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
 
     Select Case( plan%direction )
     Case( LEFT )
-       Call plan%swap_left_3d_y( corners, data, data_with_halo )
+       Call plan%swap_left_3d_y( data, data_with_halo )
     Case( RIGHT )
-       Call plan%swap_right_3d_y( corners, data, data_with_halo )
+       Call plan%swap_right_3d_y( data, data_with_halo )
     End Select
 
   End Subroutine swap_real_3d_y
 
-  Subroutine swap_real_3d_z( plan, corners, data, data_with_halo )
+  Subroutine swap_real_3d_z( plan, data, data_with_halo )
 
     Use constants, Only : wp
     
     Class( halo_plan_type ),                       Intent( In    )              :: plan
-    Logical                                      , Intent( In    )              :: corners
     Real( wp )             , Dimension( :, :, : ), Intent( In    )              :: data
     Real( wp )             , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
 
     Select Case( plan%direction )
     Case( LEFT )
-       Call plan%swap_left_3d_z( corners, data, data_with_halo )
+       Call plan%swap_left_3d_z( data, data_with_halo )
     Case( RIGHT )
-       Call plan%swap_right_3d_z( corners, data, data_with_halo )
+       Call plan%swap_right_3d_z( data, data_with_halo )
     End Select
 
   End Subroutine swap_real_3d_z
@@ -748,7 +744,7 @@ Contains
 
   End Subroutine swap_int_1d_right
 
-  Subroutine swap_real_3d_left_x( plan, corners, data, data_with_halo )
+  Subroutine swap_real_3d_left_x( plan, data, data_with_halo )
 
     Use mpi_f08, Only : mpi_comm, mpi_request_null, mpi_request, mpi_statuses_ignore, &
          mpi_comm_size, mpi_comm_rank, mpi_isend, mpi_irecv, mpi_waitall
@@ -756,7 +752,6 @@ Contains
     Use constants, Only : wp
 
     Class( halo_plan_type ),                       Intent( In    )              :: plan
-    Logical                ,                       Intent( In    )              :: corners          
     Real( wp )             , Dimension( :, :, : ), Intent( In    )              :: data
     Real( wp )             , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
 
@@ -784,10 +779,8 @@ Contains
     n_halo = plan%n_halo
 
     ! Corners makes no difference in the x case
-    If( corners .Or. .Not. corners ) Then
-       n_loc_y = Size( data, Dim = 2 )
-       n_loc_z = Size( data, Dim = 3 )
-    End If
+    n_loc_y = Size( data, Dim = 2 )
+    n_loc_z = Size( data, Dim = 3 )
 
     Allocate( data_with_halo( plan%i_start - n_halo:plan%i_end, 1:n_loc_y, n_loc_z ) )
     data_with_halo( plan%i_start:plan%i_end, :, : ) = data
@@ -829,7 +822,7 @@ Contains
     
   End Subroutine swap_real_3d_left_x
   
-  Subroutine swap_real_3d_right_x( plan, corners, data, data_with_halo )
+  Subroutine swap_real_3d_right_x( plan, data, data_with_halo )
 
     Use mpi_f08, Only : mpi_comm, mpi_request_null, mpi_request, mpi_statuses_ignore, &
          mpi_comm_size, mpi_comm_rank, mpi_isend, mpi_irecv, mpi_waitall
@@ -837,7 +830,6 @@ Contains
     Use constants, Only : wp
 
     Class( halo_plan_type ),                       Intent( In    )              :: plan
-    Logical                ,                       Intent( In    )              :: corners          
     Real( wp )             , Dimension( :, :, : ), Intent( In    )              :: data
     Real( wp )             , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
 
@@ -865,10 +857,8 @@ Contains
     n_halo = plan%n_halo
 
     ! Corners makes no difference in the x case
-    If( corners .Or. .Not. corners ) Then
-       n_loc_y = Size( data, Dim = 2 )
-       n_loc_z = Size( data, Dim = 3 )
-    End If
+    n_loc_y = Size( data, Dim = 2 )
+    n_loc_z = Size( data, Dim = 3 )
     
     Allocate( data_with_halo( plan%i_start - n_halo:plan%i_end + n_halo, 1:n_loc_y, n_loc_z ) )
     data_with_halo( plan%i_start - n_halo:plan%i_end, :, : ) = data
@@ -910,7 +900,7 @@ Contains
     
   End Subroutine swap_real_3d_right_x
   
-  Subroutine swap_real_3d_left_y( plan, corners, data, data_with_halo )
+  Subroutine swap_real_3d_left_y( plan, data, data_with_halo )
 
     Use mpi_f08, Only : mpi_comm, mpi_request_null, mpi_request, mpi_statuses_ignore, &
          mpi_comm_size, mpi_comm_rank, mpi_isend, mpi_irecv, mpi_waitall
@@ -918,7 +908,6 @@ Contains
     Use constants, Only : wp
 
     Class( halo_plan_type ),                       Intent( In    )              :: plan
-    Logical                ,                       Intent( In    )              :: corners          
     Real( wp )             , Dimension( :, :, : ), Intent( In    )              :: data
     Real( wp )             , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
 
@@ -945,11 +934,8 @@ Contains
     next   = plan%next
     n_halo = plan%n_halo
 
-    ! Corners makes no difference in the x case
-    If( corners .Or. .Not. corners ) Then
-       n_loc_x = Size( data, Dim = 1 )
-       n_loc_z = Size( data, Dim = 3 )
-    End If
+    n_loc_x = Size( data, Dim = 1 )
+    n_loc_z = Size( data, Dim = 3 )
 
     Allocate( data_with_halo( 1:n_loc_x, plan%i_start - n_halo:plan%i_end, 1:n_loc_z ) )
     data_with_halo( :, plan%i_start:plan%i_end, : ) = data
@@ -991,7 +977,7 @@ Contains
     
   End Subroutine swap_real_3d_left_y
 
-  Subroutine swap_real_3d_right_y( plan, corners, data, data_with_halo )
+  Subroutine swap_real_3d_right_y( plan, data, data_with_halo )
 
     Use mpi_f08, Only : mpi_comm, mpi_request_null, mpi_request, mpi_statuses_ignore, &
          mpi_comm_size, mpi_comm_rank, mpi_isend, mpi_irecv, mpi_waitall
@@ -999,7 +985,6 @@ Contains
     Use constants, Only : wp
 
     Class( halo_plan_type ),                       Intent( In    )              :: plan
-    Logical                ,                       Intent( In    )              :: corners          
     Real( wp )             , Dimension( :, :, : ), Intent( In    )              :: data
     Real( wp )             , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
 
@@ -1026,11 +1011,8 @@ Contains
     next   = plan%next
     n_halo = plan%n_halo
 
-    ! Corners makes no difference in the x case
-    If( corners .Or. .Not. corners ) Then
-       n_loc_x = Size( data, Dim = 1 )
-       n_loc_z = Size( data, Dim = 3 )
-    End If
+    n_loc_x = Size( data, Dim = 1 )
+    n_loc_z = Size( data, Dim = 3 )
 
     Allocate( data_with_halo( 1:n_loc_x, plan%i_start - n_halo:plan%i_end + n_halo, n_loc_z ) )
     data_with_halo( :, plan%i_start - n_halo:plan%i_end, : ) = data
@@ -1072,7 +1054,7 @@ Contains
     
   End Subroutine swap_real_3d_right_y
 
-  Subroutine swap_real_3d_left_z( plan, corners, data, data_with_halo )
+  Subroutine swap_real_3d_left_z( plan, data, data_with_halo )
 
     Use mpi_f08, Only : mpi_comm, mpi_request_null, mpi_request, mpi_statuses_ignore, &
          mpi_comm_size, mpi_comm_rank, mpi_isend, mpi_irecv, mpi_waitall
@@ -1080,7 +1062,6 @@ Contains
     Use constants, Only : wp
 
     Class( halo_plan_type ),                       Intent( In    )              :: plan
-    Logical                ,                       Intent( In    )              :: corners          
     Real( wp )             , Dimension( :, :, : ), Intent( In    )              :: data
     Real( wp )             , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
 
@@ -1107,11 +1088,8 @@ Contains
     next   = plan%next
     n_halo = plan%n_halo
 
-    ! Corners makes no difference in the x case
-    If( corners .Or. .Not. corners ) Then
-       n_loc_x = Size( data, Dim = 1 )
-       n_loc_y = Size( data, Dim = 2 )
-    End If
+    n_loc_x = Size( data, Dim = 1 )
+    n_loc_y = Size( data, Dim = 2 )
 
     Allocate( data_with_halo( 1:n_loc_x, 1:n_loc_y, plan%i_start - n_halo:plan%i_end ) )
     data_with_halo( :, :, plan%i_start:plan%i_end ) = data
@@ -1153,7 +1131,7 @@ Contains
     
   End Subroutine swap_real_3d_left_z
 
-  Subroutine swap_real_3d_right_z( plan, corners, data, data_with_halo )
+  Subroutine swap_real_3d_right_z( plan, data, data_with_halo )
 
     Use mpi_f08, Only : mpi_comm, mpi_request_null, mpi_request, mpi_statuses_ignore, &
          mpi_comm_size, mpi_comm_rank, mpi_isend, mpi_irecv, mpi_waitall
@@ -1161,7 +1139,6 @@ Contains
     Use constants, Only : wp
 
     Class( halo_plan_type ),                       Intent( In    )              :: plan
-    Logical                ,                       Intent( In    )              :: corners          
     Real( wp )             , Dimension( :, :, : ), Intent( In    )              :: data
     Real( wp )             , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
 
@@ -1188,11 +1165,8 @@ Contains
     next   = plan%next
     n_halo = plan%n_halo
 
-    ! Corners makes no difference in the x case
-    If( corners .Or. .Not. corners ) Then
-       n_loc_x = Size( data, Dim = 1 )
-       n_loc_y = Size( data, Dim = 2 )
-    End If
+    n_loc_x = Size( data, Dim = 1 )
+    n_loc_y = Size( data, Dim = 2 )
 
     Allocate( data_with_halo( 1:n_loc_x, 1:n_loc_y, plan%i_start - n_halo:plan%i_end + n_halo ) )
     data_with_halo( :, :, plan%i_start - n_halo:plan%i_end ) = data
