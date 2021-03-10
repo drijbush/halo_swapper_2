@@ -1146,8 +1146,7 @@ Contains
     data_with_halo( lbd( 1 ):ubd( 1 ), lbd( 2 ):ubd( 2 ), lbd( 3 ):ubd( 3 ) ) = data
 
     ! Work out if data in messages will be contiguous
-    is_contiguous = lbd( 1 ) == lbd_h( 1 ) .And. lbd( 2 ) == lbd_h( 2 )
-    is_contiguous = is_contiguous .And. ( lbd( 1 ) == ind_range( 1, 1 ) .And. lbd( 2 ) == ind_range( 1, 2 ) )
+    is_contiguous = All( ind_range( 1, 1:2 ) == lbd_h( 1:2 ) ) .And. All ( ind_range( 2, 1:2 ) == ubd_h( 1:2 ) )
 
     If( .Not. is_contiguous ) Then
        ! Only need to buffer if data in messages is not contiguous
@@ -1225,6 +1224,7 @@ Contains
     Type( mpi_comm ) :: comm
 
     Integer, Dimension( 1:3 ) :: ubd
+    Integer, Dimension( 1:3 ) :: ubd_h
     Integer, Dimension( 1:2 ) :: got
     Integer, Dimension( 1:2 ) :: can_give
 
@@ -1238,7 +1238,8 @@ Contains
 
     Logical :: is_contiguous
 
-    ubd = Ubound( data )
+    ubd   = Ubound( data )
+    ubd_h = Ubound( data_with_halo )
 
     comm   = plan%comm
     prev   = plan%prev
@@ -1251,9 +1252,8 @@ Contains
     data_with_halo( lbd( 1 ):ubd( 1 ), lbd( 2 ):ubd( 2 ), lbd( 3 ):ubd( 3 ) ) = data
 
     ! Work out if data in messages will be contiguous
-    is_contiguous = lbd( 1 ) == lbd_h( 1 ) .And. lbd( 2 ) == lbd_h( 2 )
-    is_contiguous = is_contiguous .And. ( lbd( 1 ) == ind_range( 1, 1 ) .And. lbd( 2 ) == ind_range( 1, 2 ) )
-
+    is_contiguous = All( ind_range( 1, 1:2 ) == lbd_h( 1:2 ) ) .And. All ( ind_range( 2, 1:2 ) == ubd_h( 1:2 ) )
+    
     If( .Not. is_contiguous ) Then
        ! Only need to buffer if data in messages is not contiguous
        Allocate( buffer_send( 1:n_halo * n_loc_x * n_loc_y ) )

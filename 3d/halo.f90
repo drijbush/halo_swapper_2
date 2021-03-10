@@ -14,7 +14,7 @@ Program halo3
   
   Implicit None
 
-  Integer, Parameter :: base = 10
+  Integer, Parameter :: base = 256
 
   Type dims_data
      Integer, Dimension( : ), Allocatable :: n
