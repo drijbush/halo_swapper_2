@@ -169,6 +169,8 @@ Contains
     Real( wp ), Dimension( - halo_width:, - halo_width:, - halo_width: ), Intent(   Out ) :: hout
     Integer,                                                     Intent(   Out ) :: error
 
+    Integer, Dimension( 1:3 ) :: lb_current
+
     ! Subsequent calling tree allocates to right size unlike earlier efforts
     ! Need to rationalise this but let's get message passing right first
     Real( wp ), Dimension( :, :, : ), Allocatable :: temp1
@@ -176,10 +178,18 @@ Contains
 
     error = 0
 
+    lb_current = H%first_point
+    
     ! Just x sorted so far - let's get that going then look at subsequent
-    Call H%dim_plans( 1 )%fill( FILL_X, gin  , temp1 )
-    Call H%dim_plans( 2 )%fill( FILL_Y, temp1, temp2 )
-    Call H%dim_plans( 3 )%fill( FILL_Z, temp2, temp1  )
+    Call H%dim_plans( 1 )%fill( FILL_X, lb_current, gin  , temp1 )
+    lb_current( 1 ) = lb_current( 1 ) - H%halo_width
+    
+    Call H%dim_plans( 2 )%fill( FILL_Y, lb_current, temp1, temp2 )
+    lb_current( 2 ) = lb_current( 2 ) - H%halo_width
+
+    Call H%dim_plans( 3 )%fill( FILL_Z, lb_current, temp2, temp1  )
+    lb_current( 3 ) = lb_current( 3 ) - H%halo_width
+    
     Hout = temp1
     
   End Subroutine halo_fill

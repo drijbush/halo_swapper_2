@@ -145,14 +145,15 @@ Contains
 
   End Subroutine halo_dim_plan_fill_1d
 
-  Subroutine halo_dim_plan_fill_3d( plan, which, data, data_with_halo )
+  Subroutine halo_dim_plan_fill_3d( plan, which, lbd, data, data_with_halo )
 
     Use constants, Only : wp
     
-    Class( halo_dim_plan_type ),                       Intent( In    )              :: plan
-    Integer                                          , Intent( In    )              :: which
-    Real( wp )                 , Dimension( :, :, : ), Intent( In    )              :: data
-    Real( wp )                 , Dimension( :, :, : ), Intent(   Out ), Allocatable :: data_with_halo
+    Class( halo_dim_plan_type ),                                               Intent( In    )              :: plan
+    Integer                                                                  , Intent( In    )              :: which
+    Integer                    , Dimension( 1:3                             ), Intent( In    )              :: lbd
+    Real( wp )                 , Dimension( lbd( 1 ):, lbd( 2 ):, lbd( 3 ): ), Intent( In    )              :: data
+    Real( wp )                 , Dimension(         :,         :,         : ), Intent(   Out ), Allocatable :: data_with_halo
 
     Real( wp ), Dimension( :, :, : ), Allocatable :: temp
 
