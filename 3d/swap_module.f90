@@ -174,8 +174,13 @@ Contains
        Call plan%right%swap_3d_x( lbd_h, temp, lbd_h, data_with_halo )
 
     Case( FILL_Y )
-       Call plan%left%swap_3d_y ( lbd, data, temp           )
-       Call plan%right%swap_3d_y( lbd, temp, data_with_halo )
+       lbd_h( 2 ) = lbd_h( 2 ) - plan%left%n_halo
+       Allocate( temp( lbd_h( 1 ):ubd_h( 1 ), lbd_h( 2 ):ubd_h( 2 ), lbd_h( 3 ):ubd_h( 3 ) ) )
+       Call plan%left%swap_3d_y ( lbd, data, lbd_h, temp )
+       
+       ubd_h( 2 ) = ubd_h( 2 ) + plan%right%n_halo
+       Allocate( data_with_halo( lbd_h( 1 ):ubd_h( 1 ), lbd_h( 2 ):ubd_h( 2 ), lbd_h( 3 ):ubd_h( 3 ) ) )
+       Call plan%right%swap_3d_y( lbd_h, temp, lbd_h, data_with_halo )
 
     Case( FILL_Z )
        Call plan%left%swap_3d_z ( lbd, data, temp           )
@@ -543,20 +548,21 @@ Contains
 
   End Subroutine swap_real_3d_x
 
-  Subroutine swap_real_3d_y( plan, lbd, data, data_with_halo )
+  Subroutine swap_real_3d_y( plan, lbd, data, lbd_h, data_with_halo )
 
     Use constants, Only : wp
     
-    Class( halo_plan_type ),                                               Intent( In    )              :: plan
-    Integer                , Dimension( 1:3                             ), Intent( In    )              :: lbd
-    Real( wp )             , Dimension( lbd( 1 ):, lbd( 2 ):, lbd( 3 ): ), Intent( In    )              :: data
-    Real( wp )             , Dimension( :, :, : )                        , Intent(   Out ), Allocatable :: data_with_halo
+    Class( halo_plan_type ),                                                     Intent( In    ) :: plan
+    Integer                , Dimension( 1:3                                   ), Intent( In    ) :: lbd
+    Real( wp )             , Dimension( lbd( 1 )  :, lbd( 2 )  :, lbd( 3 )  : ), Intent( In    ) :: data
+    Integer                , Dimension( 1:3                                   ), Intent( In    ) :: lbd_h
+    Real( wp )             , Dimension( lbd_h( 1 ):, lbd_h( 2 ):, lbd_h( 3 ): ), Intent(   Out ) :: data_with_halo
 
     Select Case( plan%direction )
     Case( LEFT )
-       Call plan%swap_left_3d_y( lbd, data, data_with_halo )
+       Call plan%swap_left_3d_y( lbd, data, lbd_h, data_with_halo )
     Case( RIGHT )
-       Call plan%swap_right_3d_y( lbd, data, data_with_halo )
+       Call plan%swap_right_3d_y( lbd, data, lbd_h, data_with_halo )
     End Select
 
   End Subroutine swap_real_3d_y
@@ -927,17 +933,18 @@ Contains
     
   End Subroutine swap_real_3d_right_x
   
-  Subroutine swap_real_3d_left_y( plan, lbd, data, data_with_halo )
+  Subroutine swap_real_3d_left_y( plan, lbd, data, lbd_h, data_with_halo )
 
     Use mpi_f08, Only : mpi_comm, mpi_request_null, mpi_request, mpi_statuses_ignore, &
          mpi_comm_size, mpi_comm_rank, mpi_isend, mpi_irecv, mpi_waitall
 
     Use constants, Only : wp
 
-    Class( halo_plan_type ),                                               Intent( In    )              :: plan
-    Integer                , Dimension( 1:3                             ), Intent( In    )              :: lbd
-    Real( wp )             , Dimension( lbd( 1 ):, lbd( 2 ):, lbd( 3 ): ), Intent( In    )              :: data
-    Real( wp )             , Dimension( :, :, : )                        , Intent(   Out ), Allocatable :: data_with_halo
+    Class( halo_plan_type ),                                                     Intent( In    ) :: plan
+    Integer                , Dimension( 1:3                                   ), Intent( In    ) :: lbd
+    Real( wp )             , Dimension( lbd( 1 )  :, lbd( 2 )  :, lbd( 3 )  : ), Intent( In    ) :: data
+    Integer                , Dimension( 1:3                                   ), Intent( In    ) :: lbd_h
+    Real( wp )             , Dimension( lbd_h( 1 ):, lbd_h( 2 ):, lbd_h( 3 ): ), Intent(   Out ) :: data_with_halo
 
     Real( wp ), Dimension( : ), Allocatable :: buffer_send
     Real( wp ), Dimension( : ), Allocatable :: buffer_recv
@@ -946,6 +953,7 @@ Contains
 
     Type( mpi_comm ) :: comm
 
+    Integer, Dimension( 1:3 ) :: ubd
     Integer, Dimension( 1:2 ) :: got
     Integer, Dimension( 1:2 ) :: can_give
 
@@ -957,6 +965,8 @@ Contains
     Integer :: error
     Integer :: i
 
+    ubd = Ubound( data )
+    
     comm   = plan%comm
     prev   = plan%prev
     next   = plan%next
@@ -965,8 +975,7 @@ Contains
     n_loc_x = Size( data, Dim = 1 )
     n_loc_z = Size( data, Dim = 3 )
 
-    Allocate( data_with_halo( 1:n_loc_x, plan%i_start - n_halo:plan%i_end, 1:n_loc_z ) )
-    data_with_halo( :, plan%i_start:plan%i_end, : ) = data
+    data_with_halo( lbd( 1 ):ubd( 1 ), lbd( 2 ):ubd( 2 ), lbd( 3 ):ubd( 3 ) ) = data
 
     Allocate( buffer_send( 1:n_halo * n_loc_x * n_loc_z ) )
     Allocate( buffer_recv( 1:n_halo * n_loc_x * n_loc_z ) )
@@ -980,7 +989,8 @@ Contains
        
        ! Send out data and Recieve new data
        If( n_wanted > 0 ) Then
-          Call copy_in( [ 1, n_loc_x ], can_give, [ 1, n_loc_z ], Lbound( data_with_halo ), data_with_halo, buffer_send )
+          Call copy_in( [ lbd( 1 ),ubd( 1 ) ], can_give, [ lbd( 3 ), ubd( 3 ) ], &
+               Lbound( data_with_halo ), data_with_halo, buffer_send )
           ny = can_give( 2 ) - can_give( 1 ) + 1
           n_msg = ny * n_loc_x * n_loc_z
           Call mpi_isend( buffer_send, n_msg, plan%real_handle, next, SWAP_3D_LEFT, comm, requests( 1 ), error )
@@ -998,24 +1008,26 @@ Contains
        If( n_want > 0 ) Then
           ny = got( 2 ) - got( 1 ) + 1
           n_msg = ny * n_loc_x * n_loc_z
-          Call copy_out( [ 1, n_loc_x ], got, [ 1, n_loc_z ], Lbound( data_with_halo ), buffer_recv, data_with_halo )
+          Call copy_out( [ lbd( 1 ), ubd( 1 ) ], got, [ lbd( 3 ), ubd( 3 ) ], &
+               Lbound( data_with_halo ), buffer_recv, data_with_halo )
        End If
           
     End Do
     
   End Subroutine swap_real_3d_left_y
 
-  Subroutine swap_real_3d_right_y( plan, lbd, data, data_with_halo )
+  Subroutine swap_real_3d_right_y( plan, lbd, data, lbd_h, data_with_halo )
 
     Use mpi_f08, Only : mpi_comm, mpi_request_null, mpi_request, mpi_statuses_ignore, &
          mpi_comm_size, mpi_comm_rank, mpi_isend, mpi_irecv, mpi_waitall
 
     Use constants, Only : wp
 
-    Class( halo_plan_type ),                                               Intent( In    )              :: plan
-    Integer                , Dimension( 1:3                             ), Intent( In    )              :: lbd
-    Real( wp )             , Dimension( lbd( 1 ):, lbd( 2 ):, lbd( 3 ): ), Intent( In    )              :: data
-    Real( wp )             , Dimension( :, :, : )                        , Intent(   Out ), Allocatable :: data_with_halo
+    Class( halo_plan_type ),                                                     Intent( In    ) :: plan
+    Integer                , Dimension( 1:3                                   ), Intent( In    ) :: lbd
+    Real( wp )             , Dimension( lbd( 1 )  :, lbd( 2 )  :, lbd( 3 )  : ), Intent( In    ) :: data
+    Integer                , Dimension( 1:3                                   ), Intent( In    ) :: lbd_h
+    Real( wp )             , Dimension( lbd_h( 1 ):, lbd_h( 2 ):, lbd_h( 3 ): ), Intent(   Out ) :: data_with_halo
 
     Real( wp ), Dimension( : ), Allocatable :: buffer_send
     Real( wp ), Dimension( : ), Allocatable :: buffer_recv
@@ -1024,6 +1036,7 @@ Contains
 
     Type( mpi_comm ) :: comm
 
+    Integer, Dimension( 1:3 ) :: ubd
     Integer, Dimension( 1:2 ) :: got
     Integer, Dimension( 1:2 ) :: can_give
 
@@ -1035,6 +1048,8 @@ Contains
     Integer :: error
     Integer :: i
 
+    ubd = Ubound( data )
+    
     comm   = plan%comm
     prev   = plan%prev
     next   = plan%next
@@ -1043,9 +1058,8 @@ Contains
     n_loc_x = Size( data, Dim = 1 )
     n_loc_z = Size( data, Dim = 3 )
 
-    Allocate( data_with_halo( 1:n_loc_x, plan%i_start - n_halo:plan%i_end + n_halo, n_loc_z ) )
-    data_with_halo( :, plan%i_start - n_halo:plan%i_end, : ) = data
-
+    data_with_halo( lbd( 1 ):ubd( 1 ), lbd( 2 ):ubd( 2 ), lbd( 3 ):ubd( 3 ) ) = data
+    
     Allocate( buffer_send( 1:n_halo * n_loc_x * n_loc_z ) )
     Allocate( buffer_recv( 1:n_halo * n_loc_x * n_loc_z ) )
 
@@ -1058,7 +1072,8 @@ Contains
        
        ! Send out data and Recieve new data
        If( n_wanted > 0 ) Then
-          Call copy_in( [ 1, n_loc_x ], can_give, [ 1, n_loc_z ], Lbound( data_with_halo ), data_with_halo, buffer_send )
+          Call copy_in( [ lbd( 1 ), ubd( 1 ) ], can_give, [ lbd( 3 ), ubd( 3 ) ], &
+               Lbound( data_with_halo ), data_with_halo, buffer_send )
           ny = can_give( 2 ) - can_give( 1 ) + 1
           n_msg = ny * n_loc_x * n_loc_z
           Call mpi_isend( buffer_send, n_msg, plan%real_handle, prev, SWAP_3D_RIGHT, comm, requests( 1 ), error )
@@ -1076,7 +1091,8 @@ Contains
        If( n_want > 0 ) Then
           ny = got( 2 ) - got( 1 ) + 1
           n_msg = ny * n_loc_x * n_loc_z
-          Call copy_out( [ 1, n_loc_x ], got, [ 1, n_loc_z ], Lbound( data_with_halo ), buffer_recv, data_with_halo )
+          Call copy_out( [ lbd( 1 ), ubd( 1 ) ], got, [ lbd( 3 ), ubd( 3 ) ], &
+               Lbound( data_with_halo ), buffer_recv, data_with_halo )
        End If
           
     End Do
