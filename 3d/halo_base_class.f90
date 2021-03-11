@@ -5,12 +5,15 @@ Module halo_setter_base_module
 
   Type, Public, Abstract :: halo_setter_base_class
      Private
-     Integer :: n_calls
+     Logical, Private :: include_corners = .True.
+     Integer, Private :: n_calls
    Contains
      Generic,                     Public  :: init        => base_init
      Procedure,                   Public  :: allocate    => halo_allocate
      Procedure,                   Public  :: free        => halo_free
      Procedure,                   Public  :: inc_n_calls => halo_inc_n_calls
+     Procedure,                   Public  :: set_corners => halo_set_include_corners
+     Procedure,                   Public  :: do_corners  => halo_do_corners
      Procedure( fill ), Deferred, Public  :: fill
      Procedure,                   Private :: base_init
   End type halo_setter_base_class
@@ -80,4 +83,23 @@ Contains
 
   End Subroutine halo_inc_n_calls
 
+  Subroutine halo_set_include_corners( H, include_corners )
+
+    Class( halo_setter_base_class ), Intent( InOut ) :: H
+    Logical                        , Intent( In    ) :: include_corners
+
+    H%include_corners = include_corners
+
+  End Subroutine halo_set_include_corners
+
+  Pure Function halo_do_corners( H ) Result( do_corners )
+
+    Logical :: do_corners
+
+    Class( halo_setter_base_class ), Intent( In ) :: H
+
+    do_corners = H%include_corners
+
+  End Function halo_do_corners
+  
 End Module halo_setter_base_module
